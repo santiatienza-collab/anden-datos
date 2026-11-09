@@ -7,6 +7,7 @@ import type { DatabaseSync } from 'node:sqlite';
 import { RT_URLS, fetchFeed, parseAlerts, parseTripUpdates, parseVehicles } from './renfeRealtime.ts';
 import { routeStatus, trainLevel } from './semaphore.ts';
 import { regionOf } from './regions.ts';
+import { provinceOf } from './provinces.ts';
 import { classifyService, SERVICE_COMPANY } from './operators.ts';
 import type { Alert, Route, RouteStatus, Stop, TrainPosition, Trip, TripDelay } from './model.ts';
 
@@ -193,6 +194,14 @@ export class Store {
       stationNames: stops.slice(0, 3).map((s) => s.name),
       stops,
     };
+  }
+
+  private stopProvinces = new Map<string, string | undefined>();
+
+  /** Provincia de una estación (en caché). */
+  stopProvince(s: Stop): string | undefined {
+    if (!this.stopProvinces.has(s.id)) this.stopProvinces.set(s.id, provinceOf(s.lat, s.lon));
+    return this.stopProvinces.get(s.id);
   }
 
   /** Avisos activos que afectan a una estación. */

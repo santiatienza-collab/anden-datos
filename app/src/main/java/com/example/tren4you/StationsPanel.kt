@@ -1,4 +1,4 @@
-package com.example.tren4you
+﻿package com.example.tren4you
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -11,10 +11,11 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ExpandLess
+import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.NotAccessible
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Warning
@@ -22,6 +23,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -30,16 +32,27 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.tren4you.ui.theme.AndenWhite
 import com.example.tren4you.ui.theme.AndenYellow
 import com.example.tren4you.ui.theme.Gray400
 import com.example.tren4you.ui.theme.Gray900
+import java.text.Collator
+import java.util.Locale
+
+private const val OUTSIDE = "Fuera de España"
+
+private sealed interface StationListRow {
+    data class Header(val province: String, val total: Int, val withAlerts: Int, val open: Boolean) : StationListRow
+    data class Item(val station: Station, val showProvince: Boolean) : StationListRow
+}
 
 /**
- * Estaciones de la comunidad elegida: buscador y, sin búsqueda, las que tienen avisos
- * (las de accesibilidad limitada primero). Al tocar una se abre su tablero en el mapa.
+ * Todas las estaciones de la comunidad elegida, agrupadas por provincia. Dentro de cada provincia van primero
+ * las que tienen avisos (accesibilidad limitada antes que el resto) y luego el resto por orden alfabético.
+ * Cada provincia se pliega y despliega tocando su cabecera. Con una búsqueda, la lista es plana.
  */
 @Composable
 fun StationsContent(
@@ -50,13 +63,32 @@ fun StationsContent(
     onPick: (Station) -> Unit,
 ) {
     var q by remember { mutableStateOf("") }
+    // Estado de plegado por provincia; se reinicia al cambiar de comunidad.
+    val opened = remember(region?.id) { mutableStateMapOf<String, Boolean>() }
     val inRegion = remember(stations, region) { if (region == null) stations else stations.filter { it.region == region.id } }
     val searching = q.trim().length >= 2
-    val list = remember(inRegion, q) {
-        if (searching) searchStations(inRegion, q)
-        else inRegion.filter { it.alerts > 0 }.sortedWith(compareBy<Station> { !it.accessibilityIssue }.thenBy { it.name })
-    }
     val regionNames = remember(regions) { regions.associate { it.id to it.name } }
+    val collator = remember { Collator.getInstance(Locale("es", "ES")) }
+
+    val rows: List<StationListRow> = remember(inRegion, q, opened.toMap(), region?.id) {
+        if (searching) {
+            searchStations(inRegion, q).map { StationListRow.Item(it, showProvince = true) }
+        } else {
+            val byAlerts = compareBy<Station> { it.alerts == 0 }.thenBy { !it.accessibilityIssue }
+            inRegion.groupBy { it.province ?: OUTSIDE }
+                .toSortedMap { a, b -> if (a == OUTSIDE) 1 else if (b == OUTSIDE) -1 else collator.compare(a, b) }
+                .flatMap { (province, list) ->
+                    // Con una comunidad elegida las provincias salen desplegadas; con toda España, plegadas.
+                    val open = opened[province] ?: (region != null)
+                    val sorted = list.sortedWith(byAlerts.thenComparator { a, b -> collator.compare(a.name, b.name) })
+                    buildList {
+                        add(StationListRow.Header(province, list.size, list.count { it.alerts > 0 }, open))
+                        if (open) sorted.forEach { add(StationListRow.Item(it, showProvince = false)) }
+                    }
+                }
+        }
+    }
+    val withAlerts = inRegion.count { it.alerts > 0 }
 
     Column(Modifier.fillMaxWidth()) {
         Row(Modifier.padding(horizontal = 14.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -82,26 +114,65 @@ fun StationsContent(
         }
         Spacer(Modifier.height(6.dp))
         Text(
-            if (searching) "${list.size} resultado${if (list.size == 1) "" else "s"}" else "Estaciones con avisos",
+            if (searching) "${rows.size} resultado${if (rows.size == 1) "" else "s"}"
+            else "${inRegion.size} estaciones · $withAlerts con avisos",
             color = Gray400, fontSize = 11.sp, modifier = Modifier.padding(horizontal = 14.dp),
         )
-        if (list.isEmpty()) {
+        if (rows.isEmpty()) {
             Text(
-                if (searching) "Sin resultados." else "No hay estaciones con avisos. Usa el buscador para encontrar una.",
+                if (searching) "Sin resultados." else "No hay estaciones. Los datos aún se están cargando.",
                 color = Gray400, fontSize = 13.sp, modifier = Modifier.padding(14.dp),
             )
         } else LazyColumn(Modifier.weight(1f, fill = false).padding(horizontal = 14.dp)) {
-            itemsIndexed(list, key = { i, s -> "${s.id}#$i" }) { _, s ->
-                Row(Modifier.fillMaxWidth().clickable { onPick(s) }.padding(vertical = 11.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Column(Modifier.weight(1f)) {
-                        Text(s.name, color = AndenWhite, fontSize = 14.sp)
-                        if (region == null) s.region?.let { Text(regionNames[it] ?: it, color = Gray400, fontSize = 11.sp) }
+            // Clave con el índice: una clave repetida cerraría la app.
+            items(rows.size, key = { i ->
+                when (val r = rows[i]) {
+                    is StationListRow.Header -> "h-${r.province}"
+                    is StationListRow.Item -> "s-${r.station.id}#$i"
+                }
+            }) { i ->
+                when (val r = rows[i]) {
+                    is StationListRow.Header -> ProvinceHeader(r) { opened[r.province] = !r.open }
+                    is StationListRow.Item -> {
+                        val subtitle = if (r.showProvince) {
+                            listOfNotNull(r.station.province, if (region == null) regionNames[r.station.region] else null).joinToString(" · ")
+                        } else null
+                        StationRow(r.station, subtitle) { onPick(r.station) }
                     }
-                    if (s.accessibilityIssue) Icon(Icons.Filled.NotAccessible, "Accesibilidad limitada", tint = AndenYellow, modifier = Modifier.size(20.dp))
-                    else if (s.alerts > 0) Icon(Icons.Filled.Warning, "Con avisos", tint = Gray400, modifier = Modifier.size(20.dp))
                 }
             }
-            item { Spacer(Modifier.height(8.dp)) }
+            item(key = "end") { Spacer(Modifier.height(8.dp)) }
         }
+    }
+}
+
+@Composable
+private fun ProvinceHeader(h: StationListRow.Header, onToggle: () -> Unit) {
+    Row(
+        Modifier.fillMaxWidth().padding(top = 6.dp).clip(RoundedCornerShape(10.dp)).background(Gray900).clickable(onClick = onToggle).padding(horizontal = 12.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(h.province, color = AndenWhite, fontSize = 14.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+        if (h.withAlerts > 0) {
+            Icon(Icons.Filled.Warning, null, tint = AndenYellow, modifier = Modifier.size(15.dp))
+            Spacer(Modifier.width(3.dp))
+            Text("${h.withAlerts}", color = AndenYellow, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+            Spacer(Modifier.width(10.dp))
+        }
+        Text("${h.total}", color = Gray400, fontSize = 12.sp)
+        Spacer(Modifier.width(4.dp))
+        Icon(if (h.open) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore, if (h.open) "Plegar" else "Desplegar", tint = Gray400, modifier = Modifier.size(20.dp))
+    }
+}
+
+@Composable
+private fun StationRow(s: Station, subtitle: String?, onClick: () -> Unit) {
+    Row(Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 6.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+        Column(Modifier.weight(1f)) {
+            Text(s.name, color = AndenWhite, fontSize = 14.sp)
+            if (!subtitle.isNullOrEmpty()) Text(subtitle, color = Gray400, fontSize = 11.sp)
+        }
+        if (s.accessibilityIssue) Icon(Icons.Filled.NotAccessible, "Accesibilidad limitada", tint = AndenYellow, modifier = Modifier.size(20.dp))
+        else if (s.alerts > 0) Icon(Icons.Filled.Warning, "Con avisos", tint = Gray400, modifier = Modifier.size(20.dp))
     }
 }

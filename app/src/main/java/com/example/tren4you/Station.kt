@@ -12,6 +12,7 @@ data class Station(
     /** Tiene algún aviso de accesibilidad activo (ascensor, escalera, estación inaccesible…). */
     val accessibilityIssue: Boolean = false,
     val region: String? = null,
+    val province: String? = null,
 )
 
 data class Region(val id: String, val name: String, val west: Double, val south: Double, val east: Double, val north: Double)
@@ -81,6 +82,7 @@ fun parseStation(o: JSONObject) = Station(
     lat = o.getDouble("lat"), lon = o.getDouble("lon"),
     alerts = o.optInt("alerts"), accessibilityIssue = o.optBoolean("accessibility"),
     region = if (o.isNull("region")) null else o.optString("region").ifEmpty { null },
+    province = if (o.isNull("province")) null else o.optString("province").ifEmpty { null },
 )
 
 fun parseStations(arr: JSONArray) = (0 until arr.length()).map { parseStation(arr.getJSONObject(it)) }
