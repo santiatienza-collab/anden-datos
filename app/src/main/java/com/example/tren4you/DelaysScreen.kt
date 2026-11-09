@@ -132,7 +132,7 @@ fun DelaysScreen(
                                     horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center,
                                 ) {
                                     Text(
-                                        "${if (s == null) delayedCount(inRegion) else counts[s] ?: 0}", fontSize = 16.sp, fontWeight = FontWeight.Bold,
+                                        if (s == Service.Sfm) "—" else "${if (s == null) delayedCount(inRegion) else counts[s] ?: 0}", fontSize = 16.sp, fontWeight = FontWeight.Bold,
                                         color = if (on) Gray950 else AndenWhite,
                                     )
                                     Text(label, fontSize = 9.sp, maxLines = 1, softWrap = false, color = if (on) Gray950 else Gray400)
@@ -144,6 +144,21 @@ fun DelaysScreen(
                         "Compañías con datos abiertos: Renfe y SFM (Mallorca).",
                         color = Gray600, fontSize = 10.sp, modifier = Modifier.padding(top = 2.dp),
                     )
+                }
+            }
+
+            // Mallorca: no hay retrasos en tiempo real, y se dice claramente
+            if (inRegion.any { it.estimated } && (region?.id == "illes-balears" || service == Service.Sfm)) {
+                item(key = "estimated-note") {
+                    Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Gray800).padding(14.dp)) {
+                        Text("Mallorca: sin retrasos en tiempo real", color = AndenYellow, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                        Spacer(Modifier.height(4.dp))
+                        Text(
+                            "SFM y el Consorcio de Transportes no publican datos abiertos de retrasos. Se muestran los horarios " +
+                                "oficiales y, en el mapa, la posición estimada de cada tren como un anillo blanco.",
+                            color = Gray400, fontSize = 12.sp, lineHeight = 17.sp,
+                        )
+                    }
                 }
             }
 

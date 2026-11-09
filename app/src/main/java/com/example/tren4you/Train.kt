@@ -30,6 +30,9 @@ data class Train(
     /** Comunidad autónoma (id), o null si está fuera de España. */
     val region: String?,
 ) {
+    /** Posición estimada según el horario: no hay retraso medido (SFM no publica tiempo real). */
+    val estimated: Boolean get() = positionBasis == "schedule"
+
     companion object {
         fun fromJson(o: JSONObject): Train? {
             if (o.isNull("lat") || o.isNull("lon")) return null

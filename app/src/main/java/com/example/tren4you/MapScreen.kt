@@ -139,7 +139,7 @@ private fun trainsGeoJson(trains: List<Train>): String {
         JSONObject()
             .put("type", "Feature")
             .put("geometry", JSONObject().put("type", "Point").put("coordinates", JSONArray().put(t.lon).put(t.lat)))
-            .put("properties", JSONObject().put("id", t.id).put("level", t.level.key))
+            .put("properties", JSONObject().put("id", t.id).put("level", t.level.key).put("est", t.estimated))
     )
     return JSONObject().put("type", "FeatureCollection").put("features", features).toString()
 }
@@ -241,15 +241,16 @@ private fun addAndenLayers(style: Style) {
     style.addSource(GeoJsonSource(SRC, trainsGeoJson(emptyList())))
     style.addLayer(
         CircleLayer(LAYER, SRC).withProperties(
-            circleColor(levelExpr()),
+            // Los trenes estimados por horario se dibujan como anillos blancos: no son un dato en tiempo real.
+            circleColor(Expression.switchCase(Expression.eq(Expression.get("est"), Expression.literal(true)), Expression.color(Color.White.toArgb()), levelExpr())),
             circleRadius(
                 Expression.interpolate(
                     Expression.linear(), Expression.zoom(),
                     Expression.stop(4, 3.5f), Expression.stop(8, 6f), Expression.stop(12, 9f),
                 )
             ),
-            circleStrokeColor(Expression.color(c.trainStroke.toArgb())),
-            circleStrokeWidth(1.4f),
+            circleStrokeColor(Expression.switchCase(Expression.eq(Expression.get("est"), Expression.literal(true)), Expression.color(Gray600.toArgb()), Expression.color(c.trainStroke.toArgb()))),
+            circleStrokeWidth(Expression.switchCase(Expression.eq(Expression.get("est"), Expression.literal(true)), Expression.literal(2.4f), Expression.literal(1.4f))),
         )
     )
 }
@@ -527,7 +528,7 @@ private fun TopBar(
             Spacer(Modifier.height(8.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 for (l in listOf(Level.Green, Level.Amber, Level.Red, Level.Gray)) {
-                    val n = trains.count { it.level == l }
+                    val n = trains.count { it.level == l && !it.estimated }
                     val on = filter == l
                     Row(
                         Modifier.clip(RoundedCornerShape(50))
@@ -582,11 +583,12 @@ private fun TrainCard(t: Train, onClose: () -> Unit) {
             val d = t.delayMin
             val delayText = when {
                 t.cancelled -> "Cancelado"
+                t.estimated -> "sin retraso medido"
                 d == null -> "Sin dato de retraso"
                 d <= 0 -> "Sin retraso"
                 else -> "+$d min"
             }
-            Text("${levelLabel(t.level)} · $delayText", color = t.level.color(), fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+            Text("${if (t.estimated) "Según horario" else levelLabel(t.level)} · $delayText", color = if (t.estimated) Gray400 else t.level.color(), fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
             t.stopName?.let { Text("Última parada: $it", color = AndenWhite, fontSize = 13.sp, modifier = Modifier.padding(top = 4.dp)) }
             Text(
                 when (t.positionBasis) {

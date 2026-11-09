@@ -39,6 +39,7 @@ import com.example.tren4you.ui.theme.AndenWhite
 import com.example.tren4you.ui.theme.AndenYellow
 import com.example.tren4you.ui.theme.Gray400
 import com.example.tren4you.ui.theme.Gray900
+import com.example.tren4you.ui.theme.Gray950
 import java.text.Collator
 import java.util.Locale
 
@@ -64,22 +65,24 @@ fun StationsContent(
 ) {
     var q by remember { mutableStateOf("") }
     // Estado de plegado por provincia; se reinicia al cambiar de comunidad.
-    val opened = remember(region?.id) { mutableStateMapOf<String, Boolean>() }
+    var onlyAlerts by remember { mutableStateOf(false) }
+    val opened = remember(region?.id, onlyAlerts) { mutableStateMapOf<String, Boolean>() }
     val inRegion = remember(stations, region) { if (region == null) stations else stations.filter { it.region == region.id } }
+    val pool = remember(inRegion, onlyAlerts) { if (onlyAlerts) inRegion.filter { it.alerts > 0 } else inRegion }
     val searching = q.trim().length >= 2
     val regionNames = remember(regions) { regions.associate { it.id to it.name } }
     val collator = remember { Collator.getInstance(Locale("es", "ES")) }
 
-    val rows: List<StationListRow> = remember(inRegion, q, opened.toMap(), region?.id) {
+    val rows: List<StationListRow> = remember(pool, q, opened.toMap(), region?.id, onlyAlerts) {
         if (searching) {
-            searchStations(inRegion, q).map { StationListRow.Item(it, showProvince = true) }
+            searchStations(pool, q).map { StationListRow.Item(it, showProvince = true) }
         } else {
             val byAlerts = compareBy<Station> { it.alerts == 0 }.thenBy { !it.accessibilityIssue }
-            inRegion.groupBy { it.province ?: OUTSIDE }
+            pool.groupBy { it.province ?: OUTSIDE }
                 .toSortedMap { a, b -> if (a == OUTSIDE) 1 else if (b == OUTSIDE) -1 else collator.compare(a, b) }
                 .flatMap { (province, list) ->
                     // Con una comunidad elegida las provincias salen desplegadas; con toda España, plegadas.
-                    val open = opened[province] ?: (region != null)
+                    val open = opened[province] ?: (region != null || onlyAlerts)
                     val sorted = list.sortedWith(byAlerts.thenComparator { a, b -> collator.compare(a.name, b.name) })
                     buildList {
                         add(StationListRow.Header(province, list.size, list.count { it.alerts > 0 }, open))
@@ -93,6 +96,17 @@ fun StationsContent(
     Column(Modifier.fillMaxWidth()) {
         Row(Modifier.padding(horizontal = 14.dp), verticalAlignment = Alignment.CenterVertically) {
             RegionDropdown(regions, region, onRegion, Modifier.weight(1f))
+            Spacer(Modifier.width(8.dp))
+            // Filtro: solo estaciones con avisos activos
+            Row(
+                Modifier.clip(RoundedCornerShape(10.dp)).background(if (onlyAlerts) AndenYellow else Gray900)
+                    .clickable { onlyAlerts = !onlyAlerts }.padding(horizontal = 12.dp, vertical = 9.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Icon(Icons.Filled.Warning, null, tint = if (onlyAlerts) Gray950 else AndenYellow, modifier = Modifier.size(18.dp))
+                Spacer(Modifier.width(6.dp))
+                Text("Con avisos", color = if (onlyAlerts) Gray950 else AndenWhite, fontSize = 13.sp, fontWeight = FontWeight.Medium, maxLines = 1, softWrap = false)
+            }
         }
         Spacer(Modifier.height(8.dp))
         Row(
@@ -115,6 +129,7 @@ fun StationsContent(
         Spacer(Modifier.height(6.dp))
         Text(
             if (searching) "${rows.size} resultado${if (rows.size == 1) "" else "s"}"
+            else if (onlyAlerts) "${pool.size} estaciones con avisos"
             else "${inRegion.size} estaciones · $withAlerts con avisos",
             color = Gray400, fontSize = 11.sp, modifier = Modifier.padding(horizontal = 14.dp),
         )
