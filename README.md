@@ -20,10 +20,10 @@ retrasa. Los datos de la app tienen normalmente entre 5 y 15 minutos de antigüe
 
 ## Puesta en marcha (una sola vez)
 
-1. Crea el repositorio **público** `anden` en GitHub y sube este proyecto.
+1. Crea el repositorio **público** `anden-datos` en GitHub y sube este proyecto.
 2. En el repositorio: **Settings → Pages → Build and deployment → Source: GitHub Actions**.
 3. En **Actions**, ejecuta a mano *Datos de trenes* (Run workflow) para publicar la primera instantánea.
-4. La API queda en `https://<usuario>.github.io/anden/api/v1/trains.json`. La app usa esa dirección
+4. La API queda en `https://<usuario>.github.io/anden-datos/api/v1/trains.json`. La app usa esa dirección
    (`anden.backend` en `gradle.properties`).
 
 ## Desarrollo local

@@ -17,7 +17,7 @@ android {
         versionName = "1.0"
 
         // Dirección de los datos (GitHub Pages). Se cambia con -Panden.backend=https://usuario.github.io/repositorio
-        val backend = providers.gradleProperty("anden.backend").orElse("https://santiatienza-collab.github.io/anden").get()
+        val backend = providers.gradleProperty("anden.backend").orElse("https://santiatienza-collab.github.io/anden-datos").get()
         buildConfigField("String", "BACKEND_URL", "\"$backend\"")
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
