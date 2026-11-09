@@ -7,6 +7,7 @@ import type { DatabaseSync } from 'node:sqlite';
 import { RT_URLS, fetchFeed, parseAlerts, parseTripUpdates, parseVehicles } from './renfeRealtime.ts';
 import { routeStatus, trainLevel } from './semaphore.ts';
 import { regionOf } from './regions.ts';
+import { classifyService, SERVICE_COMPANY } from './operators.ts';
 import type { Alert, Route, RouteStatus, Stop, TrainPosition, Trip, TripDelay } from './model.ts';
 
 export interface SourceHealth {
@@ -245,6 +246,8 @@ export class Store {
           delayMin: null,
           cancelled: false,
           line: route?.shortName,
+          service: 'sfm' as const,
+          company: 'SFM',
           route: last ? `${route?.longName ?? ''} → ${last.name}`.trim() : route?.longName,
           stopName: here?.name,
           delayAgeSec: null,
@@ -268,6 +271,8 @@ export class Store {
           delayMin: d ? Math.round(d.delaySec / 60) : null,
           cancelled: d?.cancelled ?? false,
           line: route?.shortName,
+          service: classifyService(t.network, route?.shortName),
+          company: SERVICE_COMPANY[classifyService(t.network, route?.shortName)],
           route: route?.longName,
           stopName: stop?.name,
           // Antigüedad del dato de retraso (la cabecera de posiciones LD no es fiable).

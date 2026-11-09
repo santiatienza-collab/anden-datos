@@ -18,8 +18,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -58,7 +56,7 @@ private fun sourceLabel(id: String) = when (id) {
 }
 
 @Composable
-fun SettingsScreen(onBack: () -> Unit) {
+fun SettingsScreen() {
     var sources by remember { mutableStateOf<List<SourceStatus>?>(null) }
     var failed by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) {
@@ -69,14 +67,7 @@ fun SettingsScreen(onBack: () -> Unit) {
     }
 
     Column(Modifier.fillMaxSize().statusBarsPadding().verticalScroll(rememberScrollState()).padding(16.dp)) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            androidx.compose.material3.Icon(
-                Icons.AutoMirrored.Filled.ArrowBack, "Volver", tint = AndenYellow,
-                modifier = Modifier.clip(CircleShape).clickable(onClick = onBack).padding(6.dp).size(28.dp),
-            )
-            Spacer(Modifier.width(8.dp))
-            Text("Ajustes", color = AndenYellow, fontSize = 22.sp, fontWeight = FontWeight.Bold)
-        }
+        Text("Ajustes", color = AndenYellow, fontSize = 22.sp, fontWeight = FontWeight.Bold)
         Spacer(Modifier.height(16.dp))
 
         Section("Estado de los datos") {

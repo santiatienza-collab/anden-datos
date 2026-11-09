@@ -21,13 +21,11 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
-import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -266,16 +264,16 @@ fun MapScreen(
     region: Region?, // null = toda España
     onRegion: (Region?) -> Unit,
     stations: List<Station>,
-    alerts: List<AlertItem>,
-    alertsLoaded: Boolean,
-    onSettings: () -> Unit,
+    trains: List<Train>,
+    dataTimeSec: Long?,
+    error: String?,
+    pendingStation: Station?,
+    pendingTrain: Train?,
+    onPendingHandled: () -> Unit,
 ) {
     val context = LocalContext.current
     val density = LocalDensity.current
 
-    var trains by remember { mutableStateOf<List<Train>>(emptyList()) }
-    var dataTimeSec by remember { mutableStateOf<Long?>(null) }
-    var error by remember { mutableStateOf<String?>(null) }
     var filter by remember { mutableStateOf<Level?>(null) }
     var selectedId by remember { mutableStateOf<String?>(null) }
     var station by remember { mutableStateOf<Station?>(null) }
@@ -283,21 +281,10 @@ fun MapScreen(
     var board by remember { mutableStateOf<StationBoard?>(null) }
     var boardError by remember { mutableStateOf<String?>(null) }
     var searching by remember { mutableStateOf(false) }
-    var tab by remember { mutableStateOf(PanelTab.Delays) }
-    var panelOpen by remember { mutableStateOf(false) }
     var map by remember { mutableStateOf<MapLibreMap?>(null) }
     var styleReady by remember { mutableStateOf(false) }
     var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
 
-    // Sondeo periódico: conserva los últimos datos si falla y lo indica.
-    LaunchedEffect(Unit) {
-        while (true) {
-            runCatching { TrainsApi.trains() }
-                .onSuccess { trains = it.trains; dataTimeSec = it.generatedAt; error = null }
-                .onFailure { error = it.message ?: "sin conexión" }
-            delay(REFRESH_MS)
-        }
-    }
     LaunchedEffect(Unit) { while (true) { now = System.currentTimeMillis(); delay(1_000) } }
 
     // Tablero de la estación abierta: al abrirla y cada minuto.
@@ -366,16 +353,22 @@ fun MapScreen(
     fun openStation(s: Station, fly: Boolean) {
         selectedId = null
         arrivals = false
-        panelOpen = false
         station = s
         if (fly) map?.animateCamera(CameraUpdateFactory.newLatLngZoom(LatLng(s.lat, s.lon), 12.5), 700)
     }
 
     fun openTrain(t: Train) {
         station = null
-        panelOpen = false
         selectedId = t.id
         map?.animateCamera(CameraUpdateFactory.newLatLngZoom(LatLng(t.lat, t.lon), 9.5), 700)
+    }
+
+    LaunchedEffect(pendingStation, pendingTrain, map) {
+        if (map == null) return@LaunchedEffect
+        val st = pendingStation
+        val tr = pendingTrain
+        if (st != null) { openStation(st, true); onPendingHandled() }
+        else if (tr != null) { openTrain(tr); onPendingHandled() }
     }
 
     Box(Modifier.fillMaxSize().background(Color(0xFFE8E8EA))) {
@@ -384,22 +377,20 @@ fun MapScreen(
             onMap = { m, ready -> map = m; styleReady = ready },
             onTap = { trainHit, stationHit, regionHit ->
                 when {
-                    trainHit != null -> { selectedId = trainHit; station = null; panelOpen = false }
+                    trainHit != null -> { selectedId = trainHit; station = null }
                     stationHit != null -> stations.firstOrNull { it.id == stationHit }?.let { openStation(it, false) }
                     // Un toque en vacío cierra primero lo abierto; si no había nada, elige la comunidad tocada.
                     selectedId != null || station != null -> { selectedId = null; station = null }
-                    panelOpen -> panelOpen = false
                     regionHit != null -> regions.firstOrNull { it.id == regionHit }?.let { onRegion(it) }
                 }
             },
         )
 
-        Column(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding().padding(12.dp)) {
+        Column(Modifier.fillMaxSize().statusBarsPadding().padding(12.dp)) {
             TopBar(
                 inRegion, filter,
                 onFilter = { filter = if (filter == it) null else it },
                 onSearch = { searching = true },
-                onSettings = onSettings,
             )
             Spacer(Modifier.height(8.dp))
             RegionRow(regions, region, onPick = { onRegion(it); station = null; selectedId = null })
@@ -414,12 +405,7 @@ fun MapScreen(
                         nowSec = now / 1000, error = boardError, onToggle = { arrivals = it }, onClose = { station = null },
                     )
                 }
-                else -> InfoPanel(
-                    tab = tab, onTab = { tab = it }, open = panelOpen, onOpen = { panelOpen = it },
-                    trains = inRegion, alerts = alerts, alertsLoaded = alertsLoaded, stations = stations,
-                    regions = regions, region = region, onRegion = { onRegion(it); station = null; selectedId = null },
-                    onPickTrain = { openTrain(it) }, onPickStation = { openStation(it, true) },
-                )
+                else -> {}
             }
         }
 
@@ -527,7 +513,7 @@ private fun MapContainer(
 @Composable
 private fun TopBar(
     trains: List<Train>, filter: Level?,
-    onFilter: (Level) -> Unit, onSearch: () -> Unit, onSettings: () -> Unit,
+    onFilter: (Level) -> Unit, onSearch: () -> Unit,
 ) {
     Surface(shape = RoundedCornerShape(16.dp), color = Gray800.copy(alpha = 0.95f)) {
         Column(Modifier.padding(horizontal = 14.dp, vertical = 10.dp)) {
@@ -537,9 +523,6 @@ private fun TopBar(
                 Text("Estado de trenes en España", color = Gray400, fontSize = 12.sp, modifier = Modifier.weight(1f))
                 Icon(Icons.Filled.Search, "Buscar estación", tint = AndenYellow,
                     modifier = Modifier.clip(CircleShape).clickable(onClick = onSearch).padding(4.dp).size(24.dp))
-                Spacer(Modifier.width(6.dp))
-                Icon(Icons.Filled.Settings, "Ajustes", tint = AndenYellow,
-                    modifier = Modifier.clip(CircleShape).clickable(onClick = onSettings).padding(4.dp).size(24.dp))
             }
             Spacer(Modifier.height(8.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {

@@ -24,6 +24,9 @@ data class Train(
     /** "exact" = GPS del feed; "stop" = colocado en su última parada. */
     val positionBasis: String,
     val network: String,
+    /** Tipo de servicio (av, ld, avant, md, cercanias, rodalies, sfm) y compañía (Renfe, SFM). */
+    val service: String,
+    val company: String,
     /** Comunidad autónoma (id), o null si está fuera de España. */
     val region: String?,
 ) {
@@ -42,6 +45,8 @@ data class Train(
                 stopName = s("stopName"),
                 positionBasis = s("positionBasis") ?: "none",
                 network = s("network") ?: "",
+                service = s("service") ?: "",
+                company = s("company") ?: "",
                 region = s("region"),
             )
         }
