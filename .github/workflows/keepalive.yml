@@ -1,0 +1,31 @@
+name: Mantener activo
+
+# GitHub desactiva las tareas programadas de un repositorio sin actividad durante 60 días.
+# Este flujo hace un commit vacío si el último tiene más de 30 días, para que la actualización de datos no se pare.
+on:
+  schedule:
+    - cron: '17 4 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  keepalive:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      - name: Commit vacío si hace falta
+        run: |
+          last=$(git log -1 --format=%ct)
+          now=$(date +%s)
+          if [ $(( (now - last) / 86400 )) -ge 30 ]; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git commit --allow-empty -m "chore: mantener activas las tareas programadas"
+            git push
+          else
+            echo "Actividad reciente: no hace falta."
+          fi

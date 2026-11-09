@@ -1,0 +1,62 @@
+name: Datos de trenes
+
+# Cada pocos minutos descarga los feeds (Renfe, Consorcio de Transportes de Mallorca), calcula todo y
+# publica la API como ficheros estáticos en GitHub Pages. La app de Android lee de ahí.
+# GitHub no garantiza la puntualidad de las tareas programadas: pueden retrasarse varios minutos.
+on:
+  schedule:
+    - cron: '*/5 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Si una ejecución se retrasa y llega otra, solo importa la más reciente.
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Fecha (clave de caché diaria)
+        id: date
+        run: echo "d=$(date -u +%F)" >> "$GITHUB_OUTPUT"
+
+      # Horarios descargados e índice SQLite: se reutilizan durante el día en lugar de reconstruirlos cada 5 min.
+      - uses: actions/cache@v4
+        with:
+          path: backend/data/cache
+          key: gtfs-${{ steps.date.outputs.d }}
+          restore-keys: gtfs-
+
+      - name: Instalar dependencias
+        run: npm ci --prefix backend
+
+      - name: Pruebas
+        run: npm test --prefix backend
+
+      - name: Generar la API estática
+        run: node backend/src/snapshot.ts site
+
+      - uses: actions/configure-pages@v5
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+      - id: deploy
+        uses: actions/deploy-pages@v4

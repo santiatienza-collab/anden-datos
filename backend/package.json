@@ -1,0 +1,17 @@
+{
+  "name": "anden-backend",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22.18"
+  },
+  "scripts": {
+    "start": "node src/server.ts",
+    "test": "node --test \"test/*.test.ts\"",
+    "snapshot": "node src/snapshot.ts"
+  },
+  "dependencies": {
+    "fflate": "^0.8.2"
+  }
+}
