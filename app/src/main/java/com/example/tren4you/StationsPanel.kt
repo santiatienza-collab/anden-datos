@@ -276,7 +276,8 @@ private fun StationLeaf(n: Node.Leaf, onClick: () -> Unit) {
             Modifier.weight(1f).clip(RoundedCornerShape(8.dp)).clickable(onClick = onClick).padding(horizontal = 8.dp, vertical = 9.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            if (s.metro) Icon(Icons.Filled.Subway, "Metro", tint = AndenYellow, modifier = Modifier.size(16.dp))
+            if (s.id.startsWith("tmb-")) TmbMetroIcon(18.dp)
+            else if (s.metro) Icon(Icons.Filled.Subway, "Metro", tint = AndenYellow, modifier = Modifier.size(16.dp))
             else Icon(Icons.Filled.Train, null, tint = Gray600, modifier = Modifier.size(15.dp))
             Spacer(Modifier.width(8.dp))
             Column(Modifier.weight(1f)) {

@@ -250,11 +250,13 @@ function renderStations() {
   const base = inRegion(S.stops);
   const pool = S.onlyAlerts ? base.filter((s) => s.alerts > 0) : base;
   const q = norm(S.q.trim());
+  const TMB = '<svg width="16" height="16" viewBox="0 0 20 20" style="vertical-align:-3px" aria-label="Metro TMB"><path d="M10 0l10 10-10 10L0 10z" fill="#DA291C"/><text x="10" y="14" text-anchor="middle" font-size="11" font-weight="800" fill="#fff" font-family="system-ui,sans-serif">M</text></svg>';
+  const ico = (s) => (s.id.startsWith('tmb-') ? TMB : s.metro ? 'Ⓜ️' : '🚉');
   const mark = (s) => (s.accessibility ? '♿🚫' : s.alerts > 0 ? '⚠️' : '');
   let body = '';
   if (q.length >= 2) {
     const res = pool.filter((s) => norm(s.name).includes(q)).sort((a, b) => Number(norm(b.name).startsWith(q)) - Number(norm(a.name).startsWith(q))).slice(0, 80);
-    body = '<div class="note">' + res.length + ' resultado' + (res.length === 1 ? '' : 's') + '</div>' + res.map((s) => '<div class="st" data-act="station" data-v="' + esc(s.id) + '"><span>' + (s.metro ? 'Ⓜ️ ' : '') + esc(s.name) + ' <span class="note">' + esc(s.province ?? '') + '</span></span><span>' + mark(s) + '</span></div>').join('');
+    body = '<div class="note">' + res.length + ' resultado' + (res.length === 1 ? '' : 's') + '</div>' + res.map((s) => '<div class="st" data-act="station" data-v="' + esc(s.id) + '"><span>' + (s.metro ? ico(s) + ' ' : '') + esc(s.name) + ' <span class="note">' + esc(s.province ?? '') + '</span></span><span>' + mark(s) + '</span></div>').join('');
   } else {
     // Árbol: comunidad -> provincia -> estación
     const tree = {};
@@ -269,7 +271,7 @@ function renderStations() {
         const l = provs[p].sort((a, b) => Number(b.alerts > 0) - Number(a.alerts > 0) || a.name.localeCompare(b.name, 'es'));
         const open = S.onlyAlerts || pkeys.length === 1;
         return '<details class="prov"' + (open ? ' open' : '') + '><summary><span>' + esc(p) + '</span><em>' + cnt(l) + '</em></summary>' +
-          l.map((s) => '<div class="st" data-act="station" data-v="' + esc(s.id) + '"><span>' + (s.metro ? 'Ⓜ️' : '🚉') + ' ' + esc(s.name) + '</span><span>' + mark(s) + '</span></div>').join('') + '</details>';
+          l.map((s) => '<div class="st" data-act="station" data-v="' + esc(s.id) + '"><span>' + ico(s) + ' ' + esc(s.name) + '</span><span>' + mark(s) + '</span></div>').join('') + '</details>';
       }).join('');
       return '<details class="comm"' + (S.region || S.onlyAlerts ? ' open' : '') + '><summary><span>📍 ' + esc(rName(rid)) + '</span><em>' + cnt(all) + '</em></summary>' + inner + '</details>';
     }).join('');
