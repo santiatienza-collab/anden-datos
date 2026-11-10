@@ -15,6 +15,6 @@ try {
 export const provinceCount = () => provinces.length;
 
 /** Nombre de la provincia de un punto, o undefined si está fuera de España. */
-export function provinceOf(lat: number, lon: number): string | undefined {
-  return locate(provinces, lat, lon)?.name;
+export function provinceOf(lat: number, lon: number, tolerance?: number): string | undefined {
+  return locate(provinces, lat, lon, tolerance)?.name;
 }

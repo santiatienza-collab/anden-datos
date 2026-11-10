@@ -12,10 +12,7 @@ import android.widget.Button
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.ui.unit.dp
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
@@ -78,22 +75,28 @@ class AppOpenAdManager(private val activity: Activity) {
 
 private fun Context.dp(v: Int) = (v * resources.displayMetrics.density).toInt()
 
-/** Anuncio nativo de prueba con el aspecto oscuro de la app. Se carga una vez y se libera al salir de pantalla. */
+/** Carga un anuncio nativo (una vez) y lo libera al salir de pantalla. Se precarga aparte para que esté listo al llegar al final de la lista. */
 @Composable
-fun NativeAdCard(modifier: Modifier = Modifier, onLoaded: () -> Unit = {}) {
+fun rememberNativeAd(): NativeAd? {
     var nativeAd by remember { mutableStateOf<NativeAd?>(null) }
     val context = LocalContext.current
-
     DisposableEffect(Unit) {
         val loader = AdLoader.Builder(context, Ads.NATIVE_TEST)
-            .forNativeAd { android.util.Log.i("AndenAds", "nativo cargado"); nativeAd = it; onLoaded() }
-            .withAdListener(object : AdListener() { override fun onAdFailedToLoad(error: LoadAdError) { android.util.Log.w("AndenAds", "nativo: ${error.code} ${error.message}") } })
+            .forNativeAd { nativeAd = it }
+            .withAdListener(object : AdListener() {
+                override fun onAdFailedToLoad(error: LoadAdError) { android.util.Log.w("AndenAds", "nativo: ${error.code} ${error.message}") }
+            })
             .build()
         loader.loadAd(AdRequest.Builder().build())
         onDispose { nativeAd?.destroy() }
     }
-    // Mientras carga ocupa 1 dp: así la lista lo cuenta como primer elemento y, al cargar, crece hacia abajo en lugar de quedar fuera de pantalla.
-    val ad = nativeAd ?: run { Spacer(modifier.height(1.dp)); return }
+    return nativeAd
+}
+
+/** Anuncio nativo de prueba con el aspecto oscuro de la app. No ocupa sitio hasta que hay anuncio. */
+@Composable
+fun NativeAdCard(ad: NativeAd?, modifier: Modifier = Modifier) {
+    if (ad == null) return
     AndroidView(
         modifier = modifier.fillMaxWidth(),
         factory = { buildNativeView(it) },

@@ -21,8 +21,8 @@ try {
 export const regionList = (): RegionInfo[] => regions.map(({ id, name, bbox }) => ({ id, name, bbox }));
 
 /** Comunidad autónoma de un punto (id), o undefined si está fuera de España. */
-export function regionOf(lat: number, lon: number): string | undefined {
-  return locate(regions, lat, lon)?.id;
+export function regionOf(lat: number, lon: number, tolerance?: number): string | undefined {
+  return locate(regions, lat, lon, tolerance)?.id;
 }
 
 /** Contornos de las comunidades en GeoJSON (para dibujarlas y tocarlas en el mapa). */

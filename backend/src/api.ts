@@ -2,7 +2,7 @@
 // estáticas (producción en GitHub Pages), de modo que ambos devuelven exactamente lo mismo.
 import { regionList, regionsGeoJson } from './regions.ts';
 import { board } from './schedule.ts';
-import type { Store } from './store.ts';
+import { isForeignId, type Store } from './store.ts';
 
 /** Renfe a veces publica el mismo aviso varias veces con ids distintos: se deja uno. */
 export function dedupeAlerts<T extends { text: string; stopIds: string[]; routeIds: string[] }>(list: T[]): T[] {
@@ -51,7 +51,8 @@ export function stopsResponse(store: Store) {
     }
   }
   return {
-    stops: [...store.stops.values()].map((s) => ({
+    // Las paradas de Francia y Portugal que aparecen en los feeds de Renfe no se publican.
+    stops: [...store.stops.values()].filter((s) => !(isForeignId(s.id) && !store.stopRegion(s))).map((s) => ({
       ...s, key: stopKey(s.id), metro: /^(tmb|mbi)-/.test(s.id), region: store.stopRegion(s), province: store.stopProvince(s), ...(flagged.get(s.id) ?? { alerts: 0, accessibility: false }),
     })),
   };

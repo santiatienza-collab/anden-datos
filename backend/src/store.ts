@@ -21,6 +21,9 @@ export interface SourceHealth {
   count?: number;
 }
 
+/** Los códigos numéricos de Renfe empiezan por el país UIC: 71 = España; 87 = Francia, 94 = Portugal… */
+export const isForeignId = (id: string) => /^[0-9]+$/.test(id) && !id.startsWith('71');
+
 const nowSec = () => Math.floor(Date.now() / 1000);
 
 /** Estado en memoria, reconstruido por los ciclos de refresco. */
@@ -244,7 +247,7 @@ export class Store {
 
   /** Comunidad autónoma de una estación (en caché: las estaciones no se mueven). */
   stopRegion(s: Stop): string | undefined {
-    if (!this.stopRegions.has(s.id)) this.stopRegions.set(s.id, regionOf(s.lat, s.lon));
+    if (!this.stopRegions.has(s.id)) this.stopRegions.set(s.id, regionOf(s.lat, s.lon) ?? (isForeignId(s.id) ? undefined : regionOf(s.lat, s.lon, 0.3)));
     return this.stopRegions.get(s.id);
   }
 
@@ -295,7 +298,7 @@ export class Store {
 
   /** Provincia de una estación (en caché). */
   stopProvince(s: Stop): string | undefined {
-    if (!this.stopProvinces.has(s.id)) this.stopProvinces.set(s.id, provinceOf(s.lat, s.lon));
+    if (!this.stopProvinces.has(s.id)) this.stopProvinces.set(s.id, provinceOf(s.lat, s.lon) ?? (isForeignId(s.id) ? undefined : provinceOf(s.lat, s.lon, 0.3)));
     return this.stopProvinces.get(s.id);
   }
 

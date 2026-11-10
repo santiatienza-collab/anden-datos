@@ -35,9 +35,9 @@ function nearest(a: Area, lon: number, lat: number): number {
  * Área que contiene el punto. Si cae fuera de todas (costa, simplificación del contorno) se asigna la más
  * cercana, siempre que esté a menos de ~0,1° (≈ 10 km); si no, undefined.
  */
-export function locate(areas: Area[], lat: number, lon: number): Area | undefined {
+export function locate(areas: Area[], lat: number, lon: number, tolerance = 0.01): Area | undefined {
   for (const a of areas) if (contains(a, lon, lat)) return a;
-  let best: Area | undefined, bestD = 0.01;
+  let best: Area | undefined, bestD = tolerance;
   for (const a of areas) {
     const d = nearest(a, lon, lat);
     if (d < bestD) { bestD = d; best = a; }

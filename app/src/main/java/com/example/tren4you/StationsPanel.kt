@@ -123,6 +123,7 @@ fun StationsContent(
         }
     }
     val withAlerts = inRegion.count { it.alerts > 0 }
+    val nativeAd = rememberNativeAd()
 
     Column(Modifier.fillMaxWidth()) {
         Row(Modifier.padding(horizontal = 14.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -178,8 +179,6 @@ fun StationsContent(
                 color = Gray400, fontSize = 13.sp, modifier = Modifier.padding(14.dp),
             )
         } else LazyColumn(Modifier.weight(1f, fill = false).padding(horizontal = 14.dp)) {
-            // Anuncio nativo de prueba (AdMob) al principio de la lista, fuera de las búsquedas.
-            if (!searching) item(key = "ad") { NativeAdCard(Modifier.padding(vertical = 6.dp)) }
             // Clave con el índice: una clave repetida cerraría la app.
             items(tree.size, key = { i ->
                 when (val n = tree[i]) {
@@ -194,6 +193,8 @@ fun StationsContent(
                     is Node.Leaf -> StationLeaf(n) { onPick(n.station) }
                 }
             }
+            // Anuncio nativo de prueba (AdMob) al final de la lista, fuera de las búsquedas.
+            if (!searching) item(key = "ad") { NativeAdCard(nativeAd, Modifier.padding(vertical = 10.dp)) }
             item(key = "end") { Spacer(Modifier.height(8.dp)) }
         }
     }
