@@ -66,7 +66,7 @@ private fun sourceLabel(id: String) = when (id) {
 
 @Composable
 fun SettingsScreen() {
-    var sources by remember { mutableStateOf<List<SourceStatus>?>(null) }
+    var sources by remember { mutableStateOf<SourcesInfo?>(null) }
     var failMsg by remember { mutableStateOf<String?>(null) }
     LaunchedEffect(Unit) {
         while (true) {
@@ -85,11 +85,18 @@ fun SettingsScreen() {
                 color = Gray400, fontSize = 12.sp, lineHeight = 17.sp,
             )
             Spacer(Modifier.height(10.dp))
-            val list = sources
+            val info = sources
+            val list = info?.list
             when {
                 list == null && failMsg != null -> Text("No se pudieron cargar los datos (${failMsg}). Se reintentará solo; comprueba tu conexión a internet.", color = LevelAmber, fontSize = 13.sp)
                 list == null -> Text("Comprobando…", color = Gray400, fontSize = 13.sp)
                 else -> Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    // Antigüedad de la última publicación de datos: si pasa de 20 min, algo falla en la actualización
+                    val snap = info.snapshotAgeSec
+                    Text(
+                        if (snap > 1_200) "Última actualización de los datos: ${ageLabel(snap)} (antigua)" else "Última actualización de los datos: ${ageLabel(snap)}",
+                        color = if (snap > 1_200) LevelAmber else AndenWhite, fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
+                    )
                     for (s in list) {
                         val stale = (s.ageSec ?: 0) > 600
                         val color = when { !s.ok -> LevelRed; stale -> LevelAmber; else -> LevelGreen }

@@ -57,13 +57,17 @@ object TrainsApi {
     suspend fun alerts(): List<AlertItem> = parseAlerts(get("/api/v1/alerts.json").getJSONArray("alerts"))
 
     /** Estado de las fuentes de datos (de la última instantánea). */
-    suspend fun sources(): List<SourceStatus> {
+    suspend fun sources(): SourcesInfo {
         val o = get("/health.json")
+        val generated = o.optLong("now")
+        // La antigüedad que publica cada fuente es la del momento de generar el fichero: se suma el tiempo transcurrido desde entonces.
+        val sinceSnapshot = (System.currentTimeMillis() / 1000 - generated).coerceAtLeast(0)
         val src = o.getJSONObject("sources")
-        return src.keys().asSequence().map { k ->
+        val list = src.keys().asSequence().map { k ->
             val x = src.getJSONObject(k)
-            SourceStatus(k, !x.has("lastError") || x.isNull("lastError"), if (x.isNull("feedAgeSec")) null else x.optLong("feedAgeSec"), x.optString("lastError").ifEmpty { null })
+            SourceStatus(k, !x.has("lastError") || x.isNull("lastError"), if (x.isNull("feedAgeSec")) null else x.optLong("feedAgeSec") + sinceSnapshot, x.optString("lastError").ifEmpty { null })
         }.toList().sortedBy { it.id }
+        return SourcesInfo(sinceSnapshot, list)
     }
 
     /** Contornos de las comunidades (GeoJSON en bruto) para dibujarlas y tocarlas en el mapa. */

@@ -168,4 +168,7 @@ fun parseAlerts(arr: JSONArray): List<AlertItem> = (0 until arr.length()).map {
 }
 
 /** Estado de una fuente de datos (pantalla de Ajustes). */
+/** Estado de las fuentes y antigüedad (s) de la última instantánea publicada. */
+data class SourcesInfo(val snapshotAgeSec: Long, val list: List<SourceStatus>)
+
 data class SourceStatus(val id: String, val ok: Boolean, val ageSec: Long?, val error: String?)
