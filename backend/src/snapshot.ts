@@ -6,6 +6,7 @@ import { dirname, join } from 'node:path';
 import { Store } from './store.ts';
 import { loadTmb } from './tmb.ts';
 import { computeSafety, fetchPrevious, safetyStats } from './safety.ts';
+import { fcmConfigFromEnv, fetchPreviousCriticalIds, newCritical, sendSignals } from './fcm.ts';
 import {
   alertsResponse, boardResponse, stopKey, healthResponse, regionsGeoResponse, regionsResponse,
   statusResponse, stopsResponse, trainsResponse,
@@ -63,6 +64,25 @@ const prev = await fetchPrevious(prevUrl);
 const safetyInput = { now, trains: trainsBody.trains as any, alerts: alertsBody.alerts as any, prev, stops: store.stops as any };
 const signals = computeSafety(safetyInput);
 store.health['safety'] = { count: signals.length, lastOkAt: now };
+
+// Push (FCM): solo las alertas críticas que no estaban ya en la publicación anterior. Un fallo aquí no afecta a los datos.
+try {
+  const fcm = fcmConfigFromEnv();
+  if (fcm) {
+    const prevCritical = await fetchPreviousCriticalIds(process.env.SAFETY_PREV_URL?.replace('trains.json', 'safety.json') ?? 'https://santiatienza-collab.github.io/anden-datos/api/v1/safety.json');
+    const toSend: { id: string; kind: string; severity: string; title: string; detail: string }[] = prevCritical ? newCritical(signals, prevCritical) : [];
+    // Prueba manual: si el flujo lo pide (fichero push-test.flag en el repositorio), se envía una notificación de prueba.
+    if (process.env.FCM_TEST === '1') {
+      toSend.push({ id: `test-push-${now}`, kind: 'test', severity: 'critical', title: 'Prueba de notificación', detail: 'Notificación push de prueba. No hay ninguna incidencia real.' });
+    }
+    const sent = await sendSignals(fcm, toSend as any, now);
+    store.health['fcm'] = { count: sent, lastOkAt: now };
+    console.log(`[fcm] ${sent}/${toSend.length} notificaciones enviadas`);
+  }
+} catch (e) {
+  store.health['fcm'] = { lastError: (e as Error).message };
+  console.error('[fcm]', (e as Error).message);
+}
 bytes += await write('api/v1/safety.json', {
   generatedAt: now,
   comparedWithSnapshotAgeSec: prev ? now - prev.generatedAt : null,

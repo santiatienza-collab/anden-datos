@@ -39,7 +39,13 @@ object SafetyNotifier {
     private fun prefs(c: Context) = c.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
 
     fun enabled(c: Context) = prefs(c).getBoolean(KEY_ENABLED, true)
-    fun setEnabled(c: Context, on: Boolean) = prefs(c).edit().putBoolean(KEY_ENABLED, on).apply()
+    fun setEnabled(c: Context, on: Boolean) {
+        prefs(c).edit().putBoolean(KEY_ENABLED, on).apply()
+        syncTopic(c)
+    }
+
+    /** Mantiene la suscripción al push (FCM) acorde con el interruptor de Ajustes. */
+    fun syncTopic(c: Context) = AndenMessagingService.setSubscribed(enabled(c))
 
     fun hasPermission(c: Context) =
         Build.VERSION.SDK_INT < 33 ||

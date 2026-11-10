@@ -30,3 +30,4 @@ node_modules/
 /tools/probe/alerts.json
 /tools/probe/last-run.json
 .kotlin/
+app/google-services.json

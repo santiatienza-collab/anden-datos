@@ -37,6 +37,7 @@ class MainActivity : ComponentActivity() {
         startSection = intent?.getStringExtra(SafetyNotifier.EXTRA_SECTION)
         SafetyNotifier.ensureChannel(this)
         SafetyNotifier.schedule(this)
+        SafetyNotifier.syncTopic(this) // push (FCM): suscripción al tema de alertas críticas
         if (SafetyNotifier.enabled(this) && !getSharedPreferences("anden", MODE_PRIVATE).getBoolean("asked_notif", false)) {
             getSharedPreferences("anden", MODE_PRIVATE).edit().putBoolean("asked_notif", true).apply()
             requestNotificationPermission()

@@ -57,6 +57,10 @@ jobs:
         env:
           TMB_APP_ID: ${{ secrets.TMB_APP_ID }}
           TMB_APP_KEY: ${{ secrets.TMB_APP_KEY }}
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          FIREBASE_PROJECT_ID: ${{ secrets.FIREBASE_PROJECT_ID }}
+          # Si existe push-test.flag en el repositorio, se envía una notificación de prueba
+          FCM_TEST: ${{ hashFiles('push-test.flag') != '' && '1' || '' }}
         run: node backend/src/snapshot.ts site
 
       # La web (web/) se publica en la raíz, junto a los datos
