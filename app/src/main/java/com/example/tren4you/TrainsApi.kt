@@ -73,6 +73,9 @@ object TrainsApi {
         StationBoard(station, true, AccessibilitySummary(false, 0, 0, 0), emptyList(), emptyList(), emptyList())
     }
 
+    /** Señales de seguridad calculadas por el servidor (tren detenido, aproximación, avisos de vía/señalización…). */
+    suspend fun safety(): SafetyData = parseSafety(get("/api/v1/safety.json"))
+
     suspend fun alerts(): List<AlertItem> = parseAlerts(get("/api/v1/alerts.json").getJSONArray("alerts"))
 
     /** Estado de las fuentes de datos (de la última instantánea). */

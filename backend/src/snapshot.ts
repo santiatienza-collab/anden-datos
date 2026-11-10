@@ -5,6 +5,7 @@ import { mkdir, rm, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { Store } from './store.ts';
 import { loadTmb } from './tmb.ts';
+import { computeSafety, fetchPrevious, safetyStats } from './safety.ts';
 import {
   alertsResponse, boardResponse, stopKey, healthResponse, regionsGeoResponse, regionsResponse,
   statusResponse, stopsResponse, trainsResponse,
@@ -51,8 +52,24 @@ try {
 
 await rm(out, { recursive: true, force: true });
 let bytes = 0;
-bytes += await write('api/v1/trains.json', trainsResponse(store, now));
-bytes += await write('api/v1/alerts.json', alertsResponse(store, now));
+const trainsBody = trainsResponse(store, now);
+const alertsBody = alertsResponse(store, now);
+bytes += await write('api/v1/trains.json', trainsBody);
+bytes += await write('api/v1/alerts.json', alertsBody);
+
+// Señales de seguridad: se comparan las posiciones con la instantánea anterior ya publicada.
+const prevUrl = process.env.SAFETY_PREV_URL ?? 'https://santiatienza-collab.github.io/anden-datos/api/v1/trains.json';
+const prev = await fetchPrevious(prevUrl);
+const safetyInput = { now, trains: trainsBody.trains as any, alerts: alertsBody.alerts as any, prev, stops: store.stops as any };
+const signals = computeSafety(safetyInput);
+store.health['safety'] = { count: signals.length, lastOkAt: now };
+bytes += await write('api/v1/safety.json', {
+  generatedAt: now,
+  comparedWithSnapshotAgeSec: prev ? now - prev.generatedAt : null,
+  stats: safetyStats(safetyInput),
+  note: 'Vigilancia con datos abiertos, con minutos de retraso y sin velocidad, vía ni sentido reales. No sustituye a la señalización ni a los sistemas del operador. Iryo, Ouigo y otras compañías no publican datos abiertos y no se vigilan.',
+  signals,
+});
 bytes += await write('api/v1/stops.json', stopsResponse(store));
 bytes += await write('api/v1/regions.json', regionsResponse());
 bytes += await write('api/v1/regions/geo.json', regionsGeoResponse());

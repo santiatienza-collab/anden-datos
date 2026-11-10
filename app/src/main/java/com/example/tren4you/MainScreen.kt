@@ -14,6 +14,7 @@ import androidx.compose.material.icons.filled.Map
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material.icons.filled.Train
 import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
@@ -55,6 +56,7 @@ enum class Section(val label: String, val icon: ImageVector) {
     Delays("Retrasos", Icons.Filled.Schedule),
     Alerts("Avisos", Icons.Filled.Notifications),
     Stations("Estaciones", Icons.Filled.Train),
+    Safety("Seguridad", Icons.Filled.Shield),
     Settings("Ajustes", Icons.Filled.Settings),
 }
 
@@ -78,6 +80,7 @@ fun MainScreen() {
     var stations by remember { mutableStateOf<List<Station>>(emptyList()) }
     var alerts by remember { mutableStateOf<List<AlertItem>>(emptyList()) }
     var alertsLoaded by remember { mutableStateOf(false) }
+    var safety by remember { mutableStateOf<SafetyData?>(null) }
     var pendingStation by remember { mutableStateOf<Station?>(null) }
     var pendingTrain by remember { mutableStateOf<Train?>(null) }
     val visited = remember { mutableStateListOf<Section>() }
@@ -114,6 +117,12 @@ fun MainScreen() {
             delay(REFRESH_MS)
         }
     }
+    LaunchedEffect(Unit) {
+        while (true) {
+            runCatching { TrainsApi.safety() }.onSuccess { safety = it }
+            delay(REFRESH_MS)
+        }
+    }
     LaunchedEffect(Unit) { while (true) { now = System.currentTimeMillis(); delay(1_000) } }
 
     val inRegion = remember(trains, region) { if (region == null) trains else trains.filter { it.region == region?.id } }
@@ -128,7 +137,7 @@ fun MainScreen() {
         bottomBar = {
             NavigationBar(containerColor = Gray800) {
                 for (s in Section.entries) {
-                    val badge = when (s) { Section.Delays -> delayedBadge; Section.Alerts -> alertBadge; else -> 0 }
+                    val badge = when (s) { Section.Delays -> delayedBadge; Section.Alerts -> alertBadge; Section.Safety -> safety?.signals?.size ?: 0; else -> 0 }
                     NavigationBarItem(
                         selected = section == s,
                         onClick = { section = s },
@@ -176,6 +185,14 @@ fun MainScreen() {
                             stations, regions, region, onRegion = { region = it },
                             onOpen = { pendingStation = it; section = Section.Map },
                         )
+                        Section.Safety -> SafetyPage(safety, safety != null) { sig ->
+                            // Con trenes implicados se abre el tren; si no, la estación más cercana al punto del aviso.
+                            val train = sig.tripIds.reversed().firstNotNullOfOrNull { id -> trains.firstOrNull { it.id == id } }
+                            val near = if (train == null && sig.lat != null && sig.lon != null)
+                                stations.minByOrNull { (it.lat - sig.lat) * (it.lat - sig.lat) + (it.lon - sig.lon) * (it.lon - sig.lon) } else null
+                            if (train != null) { pendingTrain = train; section = Section.Map }
+                            else if (near != null) { pendingStation = near; section = Section.Map }
+                        }
                         Section.Settings -> SettingsScreen(dark) { dark = it; prefs.edit().putBoolean("dark_map", it).apply() }
                         Section.Map -> {}
                     }
