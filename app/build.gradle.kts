@@ -10,7 +10,7 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.example.tren4you"
+        applicationId = "com.anden.miapp"
         minSdk = 24
         targetSdk = 37
         versionCode = 1
