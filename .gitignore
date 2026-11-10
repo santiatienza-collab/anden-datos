@@ -29,3 +29,4 @@ node_modules/
 # Salidas de las pruebas de fuentes
 /tools/probe/alerts.json
 /tools/probe/last-run.json
+.kotlin/
