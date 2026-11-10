@@ -1,19 +1,23 @@
 name: Datos de trenes
 
-# Cada pocos minutos descarga los feeds (Renfe, Consorcio de Transportes de Mallorca), calcula todo y
-# publica la API como ficheros estáticos en GitHub Pages. La app de Android lee de ahí.
-# GitHub no garantiza la puntualidad de las tareas programadas: pueden retrasarse varios minutos.
+# Descarga los feeds (Renfe, Euskotren, Metro Bilbao, FGC, Consorcio de Transportes de Mallorca), calcula todo y publica
+# la API como ficheros estáticos en GitHub Pages. La app de Android lee de ahí.
+#
+# GitHub NO cumple los cron frecuentes: en repositorios con poca actividad ejecuta una tarea de "*/5" solo una o dos veces
+# por hora, o menos. Por eso cada ejecución, al terminar, lanza la siguiente (workflow_dispatch con el token del propio flujo
+# sí está permitido). El cron queda como red de seguridad para reanudar la cadena si se rompe.
 on:
   schedule:
-    - cron: '*/5 * * * *'
+    - cron: '*/15 * * * *'
   workflow_dispatch:
 
 permissions:
   contents: read
   pages: write
   id-token: write
+  actions: write
 
-# Si una ejecución se retrasa y llega otra, solo importa la más reciente.
+# Si hay varias ejecuciones a la vez (la cadena y el cron), solo importa la más reciente.
 concurrency:
   group: pages
   cancel-in-progress: true
@@ -21,7 +25,7 @@ concurrency:
 jobs:
   publish:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 12
     environment:
       name: github-pages
       url: ${{ steps.deploy.outputs.page_url }}
@@ -36,7 +40,7 @@ jobs:
         id: date
         run: echo "d=$(date -u +%F)" >> "$GITHUB_OUTPUT"
 
-      # Horarios descargados e índice SQLite: se reutilizan durante el día en lugar de reconstruirlos cada 5 min.
+      # Horarios descargados e índice SQLite: se reutilizan durante el día en lugar de reconstruirlos cada pocos minutos.
       - uses: actions/cache@v4
         with:
           path: backend/data/cache
@@ -60,3 +64,13 @@ jobs:
 
       - id: deploy
         uses: actions/deploy-pages@v4
+
+      # Cadena: espera unos minutos y lanza la siguiente ejecución. Se hace incluso si algo falló arriba (para no romper la cadena),
+      # pero no si esta ejecución fue cancelada (así, si la sustituye otra, no se duplican cadenas).
+      - name: Lanzar la siguiente ejecución
+        if: success() || failure()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          sleep 150
+          gh workflow run data.yml --repo "$GITHUB_REPOSITORY" --ref "${{ github.ref_name }}"

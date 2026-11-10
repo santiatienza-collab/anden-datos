@@ -11,7 +11,10 @@ enum class Service(val key: String, val label: String, val company: String) {
     Md("md", "Media dist.", "Renfe"),
     Cercanias("cercanias", "Cercanías", "Renfe"),
     Rodalies("rodalies", "Rodalies", "Renfe"),
-    Sfm("sfm", "SFM Mallorca", "SFM");
+    Sfm("sfm", "SFM Mallorca", "SFM"),
+    Euskotren("euskotren", "Euskotren", "Euskotren"),
+    MetroBilbao("metrobilbao", "Metro Bilbao", "Metro Bilbao"),
+    Fgc("fgc", "FGC", "FGC");
 
     companion object {
         fun from(key: String?) = entries.firstOrNull { it.key == key }

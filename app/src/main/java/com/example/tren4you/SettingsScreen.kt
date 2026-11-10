@@ -52,16 +52,25 @@ private fun sourceLabel(id: String) = when (id) {
     "renfe-rt-ld-vehicles" -> "Posiciones · Larga distancia"
     "renfe-alerts" -> "Avisos de Renfe"
     "ctm-mallorca" -> "Horarios · Mallorca (SFM)"
+    "euskotren-gtfs" -> "Horarios · Euskotren"
+    "metrobilbao-gtfs" -> "Horarios · Metro Bilbao"
+    "fgc-gtfs" -> "Horarios · FGC"
+    "euskotren-rt-trips" -> "Retrasos · Euskotren"
+    "euskotren-rt-positions" -> "Posiciones · Euskotren (estimadas)"
+    "euskotren-rt-alerts" -> "Avisos · Euskotren"
+    "metrobilbao-rt-trips" -> "Retrasos · Metro Bilbao"
+    "metrobilbao-rt-vehicles" -> "Posiciones · Metro Bilbao"
+    "fgc-rt-trips" -> "Retrasos · FGC"
     else -> id
 }
 
 @Composable
 fun SettingsScreen() {
     var sources by remember { mutableStateOf<List<SourceStatus>?>(null) }
-    var failed by remember { mutableStateOf(false) }
+    var failMsg by remember { mutableStateOf<String?>(null) }
     LaunchedEffect(Unit) {
         while (true) {
-            runCatching { TrainsApi.sources() }.onSuccess { sources = it; failed = false }.onFailure { failed = true }
+            runCatching { TrainsApi.sources() }.onSuccess { sources = it; failMsg = null }.onFailure { failMsg = it.message ?: "sin red" }
             delay(15_000)
         }
     }
@@ -78,7 +87,7 @@ fun SettingsScreen() {
             Spacer(Modifier.height(10.dp))
             val list = sources
             when {
-                list == null && failed -> Text("Sin conexión con los datos.", color = LevelAmber, fontSize = 13.sp)
+                list == null && failMsg != null -> Text("No se pudieron cargar los datos (${failMsg}). Se reintentará solo; comprueba tu conexión a internet.", color = LevelAmber, fontSize = 13.sp)
                 list == null -> Text("Comprobando…", color = Gray400, fontSize = 13.sp)
                 else -> Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     for (s in list) {
@@ -102,7 +111,7 @@ fun SettingsScreen() {
             Text("Andén · versión ${BuildConfig.VERSION_NAME}", color = AndenWhite, fontSize = 14.sp)
             Spacer(Modifier.height(8.dp))
             Text(
-                "Datos de trenes: Renfe y Consorci de Transports de Mallorca (licencia CC BY 4.0). En Mallorca no hay tiempo real: las posiciones se estiman según el horario. La gravedad de los avisos se estima a partir de su texto. " +
+                "Datos de trenes: Renfe, Euskotren, Metro Bilbao, FGC y Consorci de Transports de Mallorca (datos abiertos, CC BY 4.0 o equivalente). En Mallorca no hay tiempo real: las posiciones se estiman según el horario. La gravedad de los avisos se estima a partir de su texto. " +
                     "Los datos son orientativos: para decisiones de viaje consulta los canales oficiales del operador.",
                 color = Gray400, fontSize = 12.sp, lineHeight = 17.sp,
             )

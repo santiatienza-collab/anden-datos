@@ -40,7 +40,7 @@ export async function ensureIndex(
   id: string,
   zipPath: string,
   zipHash: string,
-  opts: { prefix?: string; tripFilter?: Set<string> } = {},
+  opts: { prefix?: string; tripFilter?: Set<string>; stopMap?: Map<string, string> } = {},
 ): Promise<boolean> {
   if (indexedHash(id) === zipHash) return false;
   await mkdir(DIR, { recursive: true });
@@ -68,7 +68,8 @@ export async function ensureIndex(
     const rawTrip = f[cols.trip_id].trim();
     if (opts.tripFilter && !opts.tripFilter.has(rawTrip)) return;
     const px = opts.prefix ?? '';
-    const trip = px + rawTrip, stop = px + f[cols.stop_id].trim();
+    const rawStop = f[cols.stop_id].trim();
+    const trip = px + rawTrip, stop = px + (opts.stopMap?.get(rawStop) ?? rawStop);
     const arr = toSec(f[cols.arrival_time].trim()), dep = toSec(f[cols.departure_time].trim());
     if ((dep ?? arr) == null) return;
     ins.run(stop, (dep ?? arr) as number, trip, arr, Number(f[cols.stop_sequence]));

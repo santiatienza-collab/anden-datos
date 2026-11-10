@@ -13,8 +13,18 @@ export function dedupeAlerts<T extends { text: string; stopIds: string[]; routeI
   });
 }
 
+/** Clave de una estación apta para nombres de fichero y URLs (los ids de algunos operadores llevan ":"). */
+export const stopKey = (id: string) => id.replace(/[^A-Za-z0-9._-]/g, '_');
+
 export function trainsResponse(store: Store, now: number) {
-  return { generatedAt: now, trains: store.trainsWithLevel(now) };
+  // Renfe a veces publica el mismo tren con dos identificadores de viaje (de dos días distintos): se deja el más reciente.
+  const best = new Map<string, ReturnType<Store['trainsWithLevel']>[number]>();
+  for (const t of store.trainsWithLevel(now)) {
+    const key = `${t.service}|${t.line ?? ''}|${t.label}`;
+    const cur = best.get(key);
+    if (!cur || t.updatedAt > cur.updatedAt) best.set(key, t);
+  }
+  return { generatedAt: now, trains: [...best.values()] };
 }
 
 export function alertsResponse(store: Store, now: number) {
@@ -42,7 +52,7 @@ export function stopsResponse(store: Store) {
   }
   return {
     stops: [...store.stops.values()].map((s) => ({
-      ...s, region: store.stopRegion(s), province: store.stopProvince(s), ...(flagged.get(s.id) ?? { alerts: 0, accessibility: false }),
+      ...s, key: stopKey(s.id), region: store.stopRegion(s), province: store.stopProvince(s), ...(flagged.get(s.id) ?? { alerts: 0, accessibility: false }),
     })),
   };
 }

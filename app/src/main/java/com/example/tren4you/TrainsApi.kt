@@ -48,7 +48,7 @@ object TrainsApi {
      * hay fichero (404) se devuelve un tablero vacío en lugar de un error.
      */
     suspend fun board(station: Station): StationBoard = try {
-        parseBoard(get("/api/v1/stations/${station.id}/board.json"))
+        parseBoard(get("/api/v1/stations/${station.key}/board.json"))
     } catch (e: HttpStatusException) {
         if (e.code != 404) throw e
         StationBoard(station, true, AccessibilitySummary(false, 0, 0, 0), emptyList(), emptyList(), emptyList())

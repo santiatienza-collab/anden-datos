@@ -44,7 +44,7 @@ export function routeStatus(
   nowSec: number,
   t: Thresholds = DEFAULT_THRESHOLDS,
 ): RouteStatus {
-  const fresh = delays.filter((d) => nowSec - d.updatedAt <= t.maxAgeSec);
+  const fresh = delays.filter((d) => nowSec - d.updatedAt <= t.maxAgeSec && d.measured !== false);
   const active = alerts.filter(
     (a) => (a.activeFrom ?? 0) <= nowSec && (a.activeTo == null || a.activeTo >= nowSec),
   );
@@ -103,11 +103,11 @@ export function routeStatus(
  * gray = sin retraso fiable (sin dato de retraso o dato caducado).
  */
 export function trainLevel(
-  d: Pick<TripDelay, 'delaySec' | 'cancelled' | 'updatedAt'> | undefined,
+  d: Pick<TripDelay, 'delaySec' | 'cancelled' | 'updatedAt' | 'measured'> | undefined,
   nowSec: number,
   t: Thresholds = DEFAULT_THRESHOLDS,
 ): Level {
-  if (!d || nowSec - d.updatedAt > t.maxAgeSec) return 'gray';
+  if (!d || nowSec - d.updatedAt > t.maxAgeSec || d.measured === false) return 'gray';
   if (d.cancelled || d.delaySec >= t.severeSec) return 'red';
   if (d.delaySec >= t.delayedSec) return 'amber';
   return 'green';

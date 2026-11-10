@@ -25,7 +25,10 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Place
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Train
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -45,6 +48,7 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.TextStyle
@@ -90,6 +94,7 @@ import org.maplibre.android.style.layers.PropertyFactory.circleRadius
 import org.maplibre.android.style.layers.PropertyFactory.circleStrokeColor
 import org.maplibre.android.style.layers.PropertyFactory.circleStrokeWidth
 import org.maplibre.android.style.layers.PropertyFactory.textAnchor
+import org.maplibre.android.style.layers.PropertyFactory.visibility
 import org.maplibre.android.style.layers.PropertyFactory.textColor
 import org.maplibre.android.style.layers.PropertyFactory.textField
 import org.maplibre.android.style.layers.PropertyFactory.textFont
@@ -106,6 +111,7 @@ private const val LAYER = "trains-layer"
 private const val ST_SRC = "stations"
 private const val ST_LAYER = "stations-layer"
 private const val ST_LABELS = "stations-labels"
+private const val AL_LAYER = "stations-alerts"
 private const val RG_SRC = "regions"
 private const val RG_FILL = "regions-fill"
 private const val RG_LINE = "regions-line"
@@ -238,6 +244,20 @@ private fun addAndenLayers(style: Style) {
             textOptional(true),
         ).also { it.minZoom = 10.5f }
     )
+    // Estaciones con avisos activos: se ven desde el zoom nacional (círculo amarillo con borde oscuro)
+    style.addLayer(
+        CircleLayer(AL_LAYER, ST_SRC).withProperties(
+            circleColor(Expression.color(c.stationAlert.toArgb())),
+            circleRadius(
+                Expression.interpolate(
+                    Expression.linear(), Expression.zoom(),
+                    Expression.stop(4, 4f), Expression.stop(8, 6f), Expression.stop(13, 9f),
+                )
+            ),
+            circleStrokeColor(Expression.color(Gray900.toArgb())),
+            circleStrokeWidth(1.6f),
+        ).also { it.setFilter(Expression.neq(Expression.get("flag"), Expression.literal("ok"))) }
+    )
     style.addSource(GeoJsonSource(SRC, trainsGeoJson(emptyList())))
     style.addLayer(
         CircleLayer(LAYER, SRC).withProperties(
@@ -256,8 +276,8 @@ private fun addAndenLayers(style: Style) {
 }
 
 /**
- * Pantalla única de Andén: mapa a pantalla completa con la barra superior (contadores, selector de
- * comunidad, buscador y engranaje de Ajustes) y, abajo, el panel con pestañas Retrasos / Avisos / Estaciones.
+ * Pantalla de inicio de Andén: mapa con la leyenda y los filtros arriba (qué significa cada color, comunidad y capas
+ * Trenes / Estaciones / Avisos) y, abajo, una lista con el detalle de los retrasos que ocupa un tercio de la pantalla.
  */
 @Composable
 fun MapScreen(
@@ -271,9 +291,11 @@ fun MapScreen(
     pendingStation: Station?,
     pendingTrain: Train?,
     onPendingHandled: () -> Unit,
+    onSeeAllDelays: () -> Unit,
 ) {
     val context = LocalContext.current
     val density = LocalDensity.current
+    val screenHeightDp = LocalConfiguration.current.screenHeightDp
 
     var filter by remember { mutableStateOf<Level?>(null) }
     var selectedId by remember { mutableStateOf<String?>(null) }
@@ -282,6 +304,10 @@ fun MapScreen(
     var board by remember { mutableStateOf<StationBoard?>(null) }
     var boardError by remember { mutableStateOf<String?>(null) }
     var searching by remember { mutableStateOf(false) }
+    // Capas del mapa: todas activadas por defecto
+    var showTrains by remember { mutableStateOf(true) }
+    var showStations by remember { mutableStateOf(true) }
+    var showAlerts by remember { mutableStateOf(true) }
     var map by remember { mutableStateOf<MapLibreMap?>(null) }
     var styleReady by remember { mutableStateOf(false) }
     var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
@@ -329,8 +355,18 @@ fun MapScreen(
     LaunchedEffect(visibleStations, styleReady) {
         if (styleReady) map?.style?.getSourceAs<GeoJsonSource>(ST_SRC)?.setGeoJson(stationsGeoJson(visibleStations))
     }
+    // Visibilidad de las capas según los interruptores
+    LaunchedEffect(showTrains, showStations, showAlerts, styleReady) {
+        val style = map?.style ?: return@LaunchedEffect
+        if (!styleReady) return@LaunchedEffect
+        fun vis(on: Boolean) = visibility(if (on) Property.VISIBLE else Property.NONE)
+        style.getLayer(LAYER)?.setProperties(vis(showTrains))
+        style.getLayer(ST_LAYER)?.setProperties(vis(showStations))
+        style.getLayer(ST_LABELS)?.setProperties(vis(showStations))
+        style.getLayer(AL_LAYER)?.setProperties(vis(showAlerts))
+    }
 
-    // Encuadre: toda España al inicio; al elegir comunidad, se ajusta a ella.
+    // Encuadre: toda España al inicio; al elegir comunidad, se ajusta a ella. Deja libres la cabecera y la lista inferior.
     var framed by remember { mutableStateOf(false) }
     LaunchedEffect(region, styleReady) {
         val m = map ?: return@LaunchedEffect
@@ -343,10 +379,12 @@ fun MapScreen(
             .include(LatLng(r.south - padLat, r.west - padLon))
             .include(LatLng(r.north + padLat, r.east + padLon))
             .build()
+        if (!framed) delay(300) // la primera vez, esperar a que el mapa tenga su tamaño definitivo
         with(density) {
-            val upd = CameraUpdateFactory.newLatLngBounds(
-                bounds, 24.dp.roundToPx(), 250.dp.roundToPx(), 24.dp.roundToPx(), 130.dp.roundToPx(),
-            )
+            val h = m.height.toFloat().coerceAtLeast(1f)
+            val top = minOf(285.dp.roundToPx().toFloat(), h * 0.36f).toInt()
+            val bottom = minOf((screenHeightDp / 3 + 44).dp.roundToPx().toFloat(), h * 0.40f).toInt()
+            val upd = CameraUpdateFactory.newLatLngBounds(bounds, 24.dp.roundToPx(), top, 24.dp.roundToPx(), bottom)
             if (framed) m.animateCamera(upd, 700) else { m.moveCamera(upd); framed = true }
         }
     }
@@ -396,7 +434,14 @@ fun MapScreen(
             Spacer(Modifier.height(8.dp))
             RegionRow(regions, region, onPick = { onRegion(it); station = null; selectedId = null })
             Spacer(Modifier.weight(1f))
-            StatusLine(dataTimeSec, now, error)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                StatusLine(dataTimeSec, now, error)
+                Spacer(Modifier.weight(1f))
+                LayerToggles(
+                    showTrains, showStations, showAlerts,
+                    onTrains = { showTrains = !showTrains }, onStations = { showStations = !showStations }, onAlerts = { showAlerts = !showAlerts },
+                )
+            }
             Spacer(Modifier.height(8.dp))
             when {
                 selected != null -> TrainCard(selected, onClose = { selectedId = null })
@@ -406,7 +451,12 @@ fun MapScreen(
                         nowSec = now / 1000, error = boardError, onToggle = { arrivals = it }, onClose = { station = null },
                     )
                 }
-                else -> {}
+                // Detalle de retrasos: un tercio de la pantalla
+                else -> DelaysPanel(
+                    trains = visible, regions = regions, levelFilter = filter,
+                    modifier = Modifier.height((screenHeightDp / 3).dp),
+                    onPick = { openTrain(it) }, onSeeAll = onSeeAllDelays,
+                )
             }
         }
 
@@ -474,7 +524,7 @@ private fun MapContainer(
                     val train = m.queryRenderedFeatures(p, LAYER).firstOrNull()?.getStringProperty("id")
                     // Margen de toque mayor para las estaciones (son más pequeñas).
                     val box = RectF(p.x - 24f, p.y - 24f, p.x + 24f, p.y + 24f)
-                    val station = if (train == null) m.queryRenderedFeatures(box, ST_LAYER).firstOrNull()?.getStringProperty("id") else null
+                    val station = if (train == null) m.queryRenderedFeatures(box, AL_LAYER, ST_LAYER).firstOrNull()?.getStringProperty("id") else null
                     val regionId = if (train == null && station == null) m.queryRenderedFeatures(p, RG_FILL).firstOrNull()?.getStringProperty("id") else null
                     onTap(train, station, regionId)
                     train != null || station != null || regionId != null
@@ -516,34 +566,67 @@ private fun TopBar(
     trains: List<Train>, filter: Level?,
     onFilter: (Level) -> Unit, onSearch: () -> Unit,
 ) {
+    // Los trenes estimados por horario (Mallorca) no tienen retraso medido: no cuentan como "sin dato".
+    val counts = remember(trains) { trains.filter { !it.estimated }.groupingBy { it.level }.eachCount() }
     Surface(shape = RoundedCornerShape(16.dp), color = Gray800.copy(alpha = 0.95f)) {
         Column(Modifier.padding(horizontal = 14.dp, vertical = 10.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("Andén", color = AndenYellow, fontSize = 20.sp, fontWeight = FontWeight.Bold)
                 Spacer(Modifier.width(8.dp))
-                Text("Estado de trenes en España", color = Gray400, fontSize = 12.sp, modifier = Modifier.weight(1f))
+                Text("Retrasos e incidencias de trenes", color = Gray400, fontSize = 12.sp, modifier = Modifier.weight(1f))
                 Icon(Icons.Filled.Search, "Buscar estación", tint = AndenYellow,
                     modifier = Modifier.clip(CircleShape).clickable(onClick = onSearch).padding(4.dp).size(24.dp))
             }
             Spacer(Modifier.height(8.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                for (l in listOf(Level.Green, Level.Amber, Level.Red, Level.Gray)) {
-                    val n = trains.count { it.level == l && !it.estimated }
+            // Cuatro botones iguales: número de trenes y qué significa cada color
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                for ((l, label) in listOf(Level.Green to "Puntuales", Level.Amber to "Retraso", Level.Red to "Graves", Level.Gray to "Sin dato")) {
                     val on = filter == l
-                    Row(
-                        Modifier.clip(RoundedCornerShape(50))
-                            .background(if (on) AndenYellow else Gray900)
-                            .clickable { onFilter(l) }
-                            .padding(horizontal = 10.dp, vertical = 6.dp),
-                        verticalAlignment = Alignment.CenterVertically,
+                    Column(
+                        Modifier.weight(1f).clip(RoundedCornerShape(12.dp)).background(if (on) AndenYellow else Gray900)
+                            .clickable { onFilter(l) }.padding(vertical = 7.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
                     ) {
-                        Box(Modifier.size(9.dp).clip(CircleShape).background(l.color()))
-                        Spacer(Modifier.width(6.dp))
-                        Text("$n", color = if (on) Gray950 else AndenWhite, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Box(Modifier.size(9.dp).clip(CircleShape).background(l.color()))
+                            Spacer(Modifier.width(5.dp))
+                            Text("${counts[l] ?: 0}", color = if (on) Gray950 else AndenWhite, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                        }
+                        Text(label, color = if (on) Gray950 else Gray400, fontSize = 10.sp, maxLines = 1, softWrap = false)
                     }
                 }
             }
+            Spacer(Modifier.height(6.dp))
+            Text(
+                "Cada punto es un tren. Naranja: 5–14 min de retraso · Rojo: 15 min o más, o cancelado · Anillo blanco: según horario.",
+                color = Gray400, fontSize = 10.sp, lineHeight = 13.sp,
+            )
         }
+    }
+}
+
+/** Interruptores de las capas del mapa. Todas activadas por defecto. */
+@Composable
+private fun LayerToggles(
+    trains: Boolean, stations: Boolean, alerts: Boolean,
+    onTrains: () -> Unit, onStations: () -> Unit, onAlerts: () -> Unit,
+) {
+    Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+        @Composable
+        fun toggle(label: String, icon: androidx.compose.ui.graphics.vector.ImageVector, on: Boolean, click: () -> Unit) {
+            Row(
+                Modifier.clip(RoundedCornerShape(50)).background(if (on) Gray800.copy(alpha = 0.95f) else Gray900.copy(alpha = 0.55f))
+                    .clickable(onClick = click).padding(horizontal = 9.dp, vertical = 6.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Icon(icon, label, tint = if (on) AndenYellow else Gray400, modifier = Modifier.size(15.dp))
+                Spacer(Modifier.width(4.dp))
+                Text(label, color = if (on) AndenWhite else Gray400, fontSize = 10.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, softWrap = false)
+            }
+        }
+        toggle("Trenes", Icons.Filled.Train, trains, onTrains)
+        toggle("Estac.", Icons.Filled.Place, stations, onStations)
+        toggle("Avisos", Icons.Filled.Warning, alerts, onAlerts)
     }
 }
 
@@ -594,6 +677,7 @@ private fun TrainCard(t: Train, onClose: () -> Unit) {
                 when (t.positionBasis) {
                     "exact" -> "Posición GPS"
                     "schedule" -> "Posición estimada según el horario (sin datos en tiempo real)"
+                    "interpolated" -> "Posición estimada con el horario y el retraso medido"
                     else -> "Posición aproximada (última parada)"
                 },
                 color = Gray400, fontSize = 11.sp, modifier = Modifier.padding(top = 4.dp),

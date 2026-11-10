@@ -6,7 +6,7 @@ export type SourceId =
   | 'renfe-rt-cercanias'
   | 'renfe-rt-ld';
 
-export type Network = 'cercanias' | 'ld' | 'mallorca';
+export type Network = 'cercanias' | 'ld' | 'mallorca' | 'euskotren' | 'metrobilbao' | 'fgc';
 
 export type Level = 'green' | 'amber' | 'red' | 'gray';
 
@@ -38,6 +38,8 @@ export interface TripDelay {
   delaySec: number;
   cancelled: boolean;
   skippedStops: string[];
+  /** false = el feed no permite calcular el retraso de este viaje (no se asume puntual). */
+  measured?: boolean;
   /** Epoch seg. del dato (cabecera del feed). */
   updatedAt: number;
   network: Network;
@@ -50,7 +52,7 @@ export interface TrainPosition {
   lat?: number;
   lon?: number;
   /** 'exact' = GPS del feed; 'stop' = posición de la última parada; */
-  positionBasis: 'exact' | 'stop' | 'schedule' | 'none';
+  positionBasis: 'exact' | 'stop' | 'schedule' | 'interpolated' | 'none';
   stopId?: string;
   status?: string;
   delaySec?: number;

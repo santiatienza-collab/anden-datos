@@ -5,7 +5,7 @@ import { mkdir, rm, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { Store } from './store.ts';
 import {
-  alertsResponse, boardResponse, healthResponse, regionsGeoResponse, regionsResponse,
+  alertsResponse, boardResponse, stopKey, healthResponse, regionsGeoResponse, regionsResponse,
   statusResponse, stopsResponse, trainsResponse,
 } from './api.ts';
 
@@ -48,7 +48,7 @@ let boards = 0;
 for (const id of store.stops.keys()) {
   const b = boardResponse(store, id, now);
   if (!b || (b.departures.length === 0 && b.arrivals.length === 0 && b.alerts.length === 0)) continue;
-  bytes += await write(`api/v1/stations/${id}/board.json`, b);
+  bytes += await write(`api/v1/stations/${stopKey(id)}/board.json`, b);
   boards++;
 }
 

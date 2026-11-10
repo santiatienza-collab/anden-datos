@@ -4,7 +4,7 @@ import { createServer, type ServerResponse } from 'node:http';
 import { Store } from './store.ts';
 import { searchStops } from './schedule.ts';
 import {
-  alertsResponse, boardResponse, healthResponse, regionsGeoResponse, regionsResponse,
+  alertsResponse, boardResponse, stopKey, healthResponse, regionsGeoResponse, regionsResponse,
   statusResponse, stopsResponse, trainsResponse,
 } from './api.ts';
 
@@ -38,7 +38,9 @@ const server = createServer((req, res) => {
   if (p === '/api/v1/stations/search') return json(res, { stations: searchStops(store.stops, url.searchParams.get('q') ?? '') });
   const st = p.match(new RegExp('^/api/v1/stations/([^/]+)/board$'));
   if (st) {
-    const b = boardResponse(store, decodeURIComponent(st[1]), now);
+    const wanted = decodeURIComponent(st[1]);
+    const id = store.stops.has(wanted) ? wanted : [...store.stops.keys()].find((k) => stopKey(k) === wanted);
+    const b = id ? boardResponse(store, id, now) : null;
     return b ? json(res, b) : json(res, { error: 'station_not_found' }, 404);
   }
   json(res, { error: 'not_found' }, 404);

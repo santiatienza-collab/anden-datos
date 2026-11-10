@@ -3,10 +3,11 @@
 // equivalente en el que se apoye esta app, así que no aparecen.
 import type { Network } from './model.ts';
 
-export type Service = 'av' | 'ld' | 'avant' | 'md' | 'cercanias' | 'rodalies' | 'sfm';
+export type Service = 'av' | 'ld' | 'avant' | 'md' | 'cercanias' | 'rodalies' | 'sfm' | 'euskotren' | 'metrobilbao' | 'fgc';
 
 export const SERVICE_COMPANY: Record<Service, string> = {
   av: 'Renfe', ld: 'Renfe', avant: 'Renfe', md: 'Renfe', cercanias: 'Renfe', rodalies: 'Renfe', sfm: 'SFM',
+  euskotren: 'Euskotren', metrobilbao: 'Metro Bilbao', fgc: 'FGC',
 };
 
 /**
@@ -17,9 +18,13 @@ export const SERVICE_COMPANY: Record<Service, string> = {
  * - cercanias: Cercanías (C1, C2…)
  * - rodalies: Rodalies de Catalunya (R1, R2S, RG1, RL4, T1…)
  * - sfm: Serveis Ferroviaris de Mallorca (tren T1–T3 y metro M1)
+ * - euskotren, metrobilbao, fgc: operadores con feed propio (Euskadi y Cataluña)
  */
 export function classifyService(network: Network, line: string | undefined): Service {
   if (network === 'mallorca') return 'sfm';
+  if (network === 'euskotren') return 'euskotren';
+  if (network === 'metrobilbao') return 'metrobilbao';
+  if (network === 'fgc') return 'fgc';
   const l = (line ?? '').trim().toUpperCase();
   if (network === 'cercanias') {
     // En Cercanías, "C…" son Cercanías y "R…"/"T…" las líneas de Rodalies; lo demás (MD, Regional) es Media Distancia.

@@ -15,6 +15,8 @@ export interface StaticFeed {
   railOnly?: boolean;
   /** Prefijo para los ids (evita choques con los de otras fuentes). */
   prefix?: string;
+  /** Guarda en memoria el recorrido horario de cada viaje (feeds pequeños): permite calcular retrasos y estimar posiciones. */
+  keepSchedule?: boolean;
 }
 
 const CTM_PAGE = 'https://www.tib.org/es/sobre-ctm/portal-de-transparencia/datos-abiertos';
@@ -45,6 +47,25 @@ export const STATIC_FEEDS: Record<string, StaticFeed> = {
     railOnly: true,
     prefix: 'ctm-',
   },
+  // Operadores con datos abiertos y tiempo real (GTFS + GTFS-RT en protobuf)
+  'euskotren-gtfs': {
+    network: 'euskotren',
+    url: 'https://opendata.euskadi.eus/transport/moveuskadi/euskotren/gtfs_euskotren.zip',
+    keepSchedule: true,
+    prefix: 'eus-',
+  },
+  'metrobilbao-gtfs': {
+    network: 'metrobilbao',
+    url: 'https://opendata.euskadi.eus/transport/moveuskadi/metro_bilbao/gtfs_metro_bilbao.zip',
+    keepSchedule: true,
+    prefix: 'mbi-',
+  },
+  'fgc-gtfs': {
+    network: 'fgc',
+    url: 'https://www.fgc.cat/google/google_transit.zip',
+    keepSchedule: true,
+    prefix: 'fgc-',
+  },
 };
 
 /** Parada de un viaje con sus horas (segundos desde medianoche del día de servicio). */
@@ -63,8 +84,10 @@ export interface StaticData {
   calendar: Calendar;
   /** Solo feeds pequeños (railOnly): recorrido horario de cada viaje, para estimar posiciones. */
   scheduled?: Map<string, ScheduledStop[]>;
-  /** Cómo indexar stop_times de este feed (prefijo y viajes permitidos). */
-  indexOpts: { prefix?: string; tripFilter?: Set<string> };
+  /** Andenes -> estación (ids con prefijo), para unir el tiempo real con las estaciones. */
+  stopAlias: Map<string, string>;
+  /** Cómo indexar stop_times de este feed (prefijo, viajes permitidos y andenes agrupados en su estación). */
+  indexOpts: { prefix?: string; tripFilter?: Set<string>; stopMap?: Map<string, string> };
   /** Hash y ruta del zip: el índice de horarios solo se reconstruye si cambia. */
   zipHash: string;
   zipPath: string;
@@ -108,11 +131,18 @@ export async function loadStatic(id: string): Promise<StaticData> {
   if (!feed) throw new Error(`feed estático desconocido: ${id}`);
   const { buf: zip, path: zipPath } = await download(id, feed);
   const zipHash = sha1(zip);
-  const wanted = new Set(feed.railOnly ? [...BASE_FILES, 'stop_times.txt'] : BASE_FILES);
+  const needSchedule = !!(feed.railOnly || feed.keepSchedule);
+  const wanted = new Set(needSchedule ? [...BASE_FILES, 'stop_times.txt'] : BASE_FILES);
   const files = unzipSync(zip, { filter: (f) => wanted.has(f.name) });
   const text = (n: string) => (files[n] ? strFromU8(files[n]) : '');
   const px = feed.prefix ?? '';
   const P = (s: string) => px + s;
+
+  // Paradas con estación padre (andenes): se agrupan en su estación, que es lo que se muestra al usuario.
+  const stopRows = parseCsv(text('stops.txt'));
+  const parentIds = new Set(stopRows.filter((r) => r.location_type === '1').map((r) => r.stop_id));
+  const rawAlias = new Map<string, string>();
+  for (const r of stopRows) if (r.parent_station && parentIds.has(r.parent_station)) rawAlias.set(r.stop_id, r.parent_station);
 
   // Rutas (en feeds railOnly, solo metro y tren)
   const routes = new Map<string, Route>();
@@ -123,7 +153,7 @@ export async function loadStatic(id: string): Promise<StaticData> {
     railRoutes.add(r.route_id);
     routes.set(P(r.route_id), {
       id: P(r.route_id),
-      shortName: r.route_short_name,
+      shortName: r.route_short_name || (feed.network === 'metrobilbao' ? 'Metro' : r.route_long_name),
       longName: (r.route_long_name ?? '').replace(/\s+/g, ' '),
       color: r.route_color ? `#${r.route_color}` : undefined,
       network: feed.network,
@@ -143,7 +173,7 @@ export async function loadStatic(id: string): Promise<StaticData> {
   // Recorrido horario (solo feeds pequeños) y paradas realmente usadas
   let scheduled: Map<string, ScheduledStop[]> | undefined;
   const usedStops = new Set<string>();
-  if (feed.railOnly) {
+  if (needSchedule) {
     scheduled = new Map();
     const tmp = new Map<string, { seq: number; s: ScheduledStop }[]>();
     for (const r of parseCsv(text('stop_times.txt'))) {
@@ -151,18 +181,20 @@ export async function loadStatic(id: string): Promise<StaticData> {
       const arr = toSec(r.arrival_time), dep = toSec(r.departure_time);
       const t = dep ?? arr;
       if (t == null) continue;
-      usedStops.add(r.stop_id);
+      const sid = rawAlias.get(r.stop_id) ?? r.stop_id;
+      usedStops.add(sid);
       const a = tmp.get(r.trip_id) ?? [];
-      a.push({ seq: Number(r.stop_sequence), s: { stopId: P(r.stop_id), arr: arr ?? t, dep: t } });
+      a.push({ seq: Number(r.stop_sequence), s: { stopId: P(sid), arr: arr ?? t, dep: t } });
       tmp.set(r.trip_id, a);
     }
     for (const [k, a] of tmp) scheduled.set(P(k), a.sort((x, y) => x.seq - y.seq).map((x) => x.s));
   }
   // Paradas
   const stops = new Map<string, Stop>();
-  for (const r of parseCsv(text('stops.txt'))) {
+  for (const r of stopRows) {
     const lat = Number(r.stop_lat), lon = Number(r.stop_lon);
     if (!r.stop_id || !Number.isFinite(lat) || !Number.isFinite(lon)) continue;
+    if (rawAlias.has(r.stop_id)) continue; // andén: se muestra su estación
     if (feed.railOnly && !usedStops.has(r.stop_id)) continue;
     // Los nombres del CTM llevan sufijos ("Inca Estació (302)") que sobran en un tablero de estación.
     const name = feed.railOnly ? r.stop_name.replace(/\s*\(\d+\)\s*$/, '').replace(/\s+Estaci[oó]n?$/, '') : r.stop_name;
@@ -182,7 +214,8 @@ export async function loadStatic(id: string): Promise<StaticData> {
   const calendar = buildCalendar(parseCsv(text('calendar.txt')), parseCsv(text('calendar_dates.txt')));
   return {
     stops, routes, trips, shapes, calendar, scheduled,
-    indexOpts: { prefix: feed.prefix, tripFilter: feed.railOnly ? rawTrips : undefined },
+    stopAlias: new Map([...rawAlias].map(([c, p]) => [P(c), P(p)])),
+    indexOpts: { prefix: feed.prefix, tripFilter: feed.railOnly ? rawTrips : undefined, stopMap: rawAlias.size ? rawAlias : undefined },
     zipHash, zipPath, fetchedAt: Date.now() / 1000,
   };
 }

@@ -5,6 +5,8 @@ import org.json.JSONObject
 
 data class Station(
     val id: String,
+    /** Clave apta para nombres de fichero (los ids de algunos operadores llevan ":"). */
+    val key: String,
     val name: String,
     val lat: Double,
     val lon: Double,
@@ -78,7 +80,7 @@ data class StationBoard(
 private fun JSONObject.str(k: String): String? = if (isNull(k)) null else getString(k).trim().ifEmpty { null }
 
 fun parseStation(o: JSONObject) = Station(
-    id = o.getString("id"), name = o.getString("name"),
+    id = o.getString("id"), key = o.optString("key").ifEmpty { o.getString("id") }, name = o.getString("name"),
     lat = o.getDouble("lat"), lon = o.getDouble("lon"),
     alerts = o.optInt("alerts"), accessibilityIssue = o.optBoolean("accessibility"),
     region = if (o.isNull("region")) null else o.optString("region").ifEmpty { null },

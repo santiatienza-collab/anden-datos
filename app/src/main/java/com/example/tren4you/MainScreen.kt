@@ -138,6 +138,7 @@ fun MainScreen() {
                 stations = stations, trains = trains, dataTimeSec = dataTimeSec, error = trainsError,
                 pendingStation = pendingStation, pendingTrain = pendingTrain,
                 onPendingHandled = { pendingStation = null; pendingTrain = null },
+                onSeeAllDelays = { section = Section.Delays },
             )
             if (section != Section.Map) {
                 // Capa opaca que además impide que los toques lleguen al mapa de debajo.

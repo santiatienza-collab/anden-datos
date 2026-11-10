@@ -1,5 +1,7 @@
 import { STATIC_FEEDS, loadStatic, type ScheduledStop, type StaticData } from './gtfsStatic.ts';
-import { scheduledPositions } from './scheduled.ts';
+import { positionNow, scheduledEpochFor, scheduledPositions } from './scheduled.ts';
+import { fetchPb } from './pb.ts';
+import { RT_OPERATORS, resolveUrl, type RtOperator } from './rtOperators.ts';
 import { ensureIndex, openIndex } from './stopTimes.ts';
 import type { Calendar } from './calendar.ts';
 import type { FeedIndex } from './schedule.ts';
@@ -35,6 +37,10 @@ export class Store {
   /** Recorridos horarios de las redes sin tiempo real (Mallorca), por feed. */
   scheduledTrips = new Map<string, Map<string, ScheduledStop[]>>();
   private dbs = new Map<string, DatabaseSync>();
+  private stopAliases = new Map<string, Map<string, string>>();
+  private alertSources = new Map<string, Alert[]>();
+  private operatorDelays = new Map<string, Map<string, TripDelay>>();
+  private operatorTrains = new Map<string, TrainPosition[]>();
   /** Estado del índice de horarios por feed: indexing | ready | error. */
   scheduleState: Record<string, string> = {};
 
@@ -84,6 +90,7 @@ export class Store {
         this.routeRegionCache.clear();
         this.calendars.set(id, d.calendar);
         if (d.scheduled) this.scheduledTrips.set(id, d.scheduled);
+        this.stopAliases.set(id, d.stopAlias);
         loaded.set(id, d);
         this.mark(id, { count: d.routes.size });
       } catch (e) { this.mark(id, e as Error); console.error(`[static] ${id}:`, (e as Error).message); }
@@ -127,9 +134,77 @@ export class Store {
 
     try {
       const a = await fetchFeed(RT_URLS.alerts);
-      this.alerts = parseAlerts(a);
-      this.mark('renfe-alerts', { feedTimestamp: a.timestamp, count: this.alerts.length });
+      const list = parseAlerts(a);
+      this.alertSources.set('renfe', list);
+      this.mark('renfe-alerts', { feedTimestamp: a.timestamp, count: list.length });
     } catch (e) { this.mark('renfe-alerts', e as Error); }
+
+    // Otros operadores (Euskotren, Metro Bilbao, FGC) y fusión con lo de Renfe
+    await this.refreshOperators();
+    for (const m of this.operatorDelays.values()) for (const [k, d] of m) this.delays.set(k, d);
+    this.trains = [...this.trains, ...[...this.operatorTrains.values()].flat()];
+    this.alerts = [...this.alertSources.values()].flat();
+  }
+
+  /** Descarga el tiempo real de cada operador. Un operador que falla no afecta a los demás: se conserva su último dato. */
+  private async refreshOperators() {
+    await Promise.all(RT_OPERATORS.map((op) => this.refreshOperator(op)));
+  }
+
+  private async refreshOperator(op: RtOperator) {
+    const sched = this.scheduledTrips.get(op.feedId);
+    const cal = this.calendars.get(op.feedId);
+    if (!sched || !cal) { this.mark(`${op.id}-rt-trips`, new Error('horarios no cargados')); return; }
+    const opts = {
+      prefix: op.prefix,
+      stopAlias: this.stopAliases.get(op.feedId),
+      scheduledEpoch: (trip: string, stop: string, start: string | undefined, predicted: number) =>
+        scheduledEpochFor(sched.get(trip), stop, start, predicted),
+    };
+    try {
+      const feed = await fetchPb(await resolveUrl(op.trips));
+      const list = parseTripUpdates(feed, op.network, this.trips, opts);
+      this.operatorDelays.set(op.id, new Map(list.map((d) => [d.tripId, d])));
+      this.mark(`${op.id}-rt-trips`, { feedTimestamp: feed.timestamp, count: list.length });
+    } catch (e) { this.mark(`${op.id}-rt-trips`, e as Error); }
+    const delays = this.operatorDelays.get(op.id) ?? new Map<string, TripDelay>();
+
+    if (op.vehicles) {
+      try {
+        const feed = await fetchPb(await resolveUrl(op.vehicles));
+        const list = parseVehicles(feed, op.network, this.trips, this.stops, delays, opts).filter((t) => t.positionBasis !== 'none');
+        this.operatorTrains.set(op.id, list);
+        this.mark(`${op.id}-rt-vehicles`, { feedTimestamp: feed.timestamp, count: list.length });
+      } catch (e) { this.mark(`${op.id}-rt-vehicles`, e as Error); }
+    } else {
+      // Sin posiciones propias: se interpola la posición con el horario desplazado por el retraso medido.
+      const at = nowSec();
+      const list: TrainPosition[] = [];
+      for (const d of delays.values()) {
+        if (d.cancelled || d.measured === false || at - d.updatedAt > 600) continue;
+        const trip = this.trips.get(d.tripId), stops = sched.get(d.tripId);
+        if (!trip || !stops) continue;
+        const spot = positionNow(at, stops, trip, cal, this.stops, d.delaySec);
+        if (!spot) continue;
+        const route = this.routes.get(trip.routeId);
+        list.push({
+          tripId: d.tripId, routeId: trip.routeId, label: route?.shortName ?? d.tripId,
+          lat: spot.lat, lon: spot.lon, positionBasis: 'interpolated', stopId: spot.stopId,
+          status: spot.atStop ? 'STOPPED_AT' : 'IN_TRANSIT_TO', delaySec: d.delaySec, updatedAt: d.updatedAt, network: op.network,
+        });
+      }
+      this.operatorTrains.set(op.id, list);
+      this.mark(`${op.id}-rt-positions`, { count: list.length });
+    }
+
+    if (op.alerts) {
+      try {
+        const feed = await fetchPb(await resolveUrl(op.alerts));
+        const list = parseAlerts(feed, opts);
+        this.alertSources.set(op.id, list);
+        this.mark(`${op.id}-rt-alerts`, { feedTimestamp: feed.timestamp, count: list.length });
+      } catch (e) { this.mark(`${op.id}-rt-alerts`, e as Error); }
+    }
   }
 
   /** Semáforo de todas las líneas con algún dato (tren o aviso). */
@@ -232,6 +307,7 @@ export class Store {
   private estimatedTrains(at: number) {
     const out = [];
     for (const [feedId, sched] of this.scheduledTrips) {
+      if (RT_OPERATORS.some((o) => o.feedId === feedId)) continue; // estos tienen tiempo real
       const cal = this.calendars.get(feedId);
       if (!cal) continue;
       for (const p of scheduledPositions(at, sched, this.trips, cal, this.stops)) {

@@ -123,7 +123,8 @@ fun DelaysScreen(
                 Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     for (row in cells.chunked(4)) {
                         Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                            for ((s, label) in row) {
+                            for (cell in 0 until 4) {
+                                val (s, label) = row.getOrNull(cell) ?: run { Spacer(Modifier.weight(1f)); continue }
                                 val on = service == s
                                 Column(
                                     Modifier.weight(1f).height(52.dp).clip(RoundedCornerShape(12.dp))
@@ -141,7 +142,7 @@ fun DelaysScreen(
                         }
                     }
                     Text(
-                        "Compañías con datos abiertos: Renfe y SFM (Mallorca).",
+                        "Compañías con datos abiertos: Renfe, SFM (Mallorca), Euskotren, Metro Bilbao y FGC.",
                         color = Gray600, fontSize = 10.sp, modifier = Modifier.padding(top = 2.dp),
                     )
                 }
@@ -344,6 +345,94 @@ private fun DelayCard(t: Train, s: Severity, regionName: String?, onClick: () ->
             Box(Modifier.padding(top = 8.dp).fillMaxWidth().height(4.dp).clip(RoundedCornerShape(2.dp)).background(Gray900)) {
                 Box(Modifier.fillMaxHeight().fillMaxWidth(if (s == Severity.Cancelled) 1f else (delay / 90f).coerceIn(0.04f, 1f)).background(s.color))
             }
+        }
+    }
+}
+
+/**
+ * Lista compacta de los retrasos para la pantalla de inicio (ocupa un tercio de la pantalla): cancelados, graves y
+ * moderados con su retraso, tren, ruta, comunidad y compañía. Al tocar uno se abre en el mapa.
+ */
+@Composable
+fun DelaysPanel(
+    trains: List<Train>,
+    regions: List<Region>,
+    levelFilter: Level?,
+    modifier: Modifier,
+    onPick: (Train) -> Unit,
+    onSeeAll: () -> Unit,
+) {
+    val regionNames = remember(regions) { regions.associate { it.id to it.name } }
+    val groups = remember(trains) {
+        trains.mapNotNull { t -> severityOf(t)?.let { it to t } }
+            .groupBy({ it.first }, { it.second })
+            .mapValues { (_, list) -> list.sortedByDescending { it.delayMin ?: 0 } }
+    }
+    val total = groups.values.sumOf { it.size }
+    androidx.compose.material3.Surface(modifier.fillMaxWidth(), shape = RoundedCornerShape(20.dp), color = Gray800.copy(alpha = 0.97f)) {
+        Column(Modifier.fillMaxSize()) {
+            Row(Modifier.padding(start = 14.dp, end = 14.dp, top = 10.dp, bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text("Retrasos · $total", color = AndenWhite, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                Spacer(Modifier.weight(1f))
+                Text("Ver todo ›", color = AndenYellow, fontSize = 12.sp, fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.clip(RoundedCornerShape(8.dp)).clickable(onClick = onSeeAll).padding(horizontal = 6.dp, vertical = 4.dp))
+            }
+            if (total == 0) {
+                Text(
+                    when (levelFilter) {
+                        Level.Green -> "Los trenes puntuales no tienen retraso."
+                        Level.Gray -> "Sin dato: no hay retraso medido para estos trenes."
+                        else -> "No hay retrasos en este momento."
+                    },
+                    color = Gray400, fontSize = 13.sp, modifier = Modifier.padding(14.dp),
+                )
+            } else {
+                LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(horizontal = 12.dp)) {
+                    for (sev in Severity.entries) {
+                        val list = groups[sev] ?: continue
+                        // Clave con el índice: dos trenes pueden compartir identificador y una clave repetida cierra la app.
+                        itemsIndexed(list, key = { i, t -> "p-${sev.name}-${t.id}#$i" }) { _, t -> CompactDelayRow(t, sev, regionNames[t.region]) { onPick(t) } }
+                    }
+                    item(key = "end") { Spacer(Modifier.height(8.dp)) }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun CompactDelayRow(t: Train, s: Severity, regionName: String?, onClick: () -> Unit) {
+    Row(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).clickable(onClick = onClick).padding(vertical = 5.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(
+            Modifier.width(52.dp).height(42.dp).clip(RoundedCornerShape(10.dp)).background(s.color.copy(alpha = 0.16f)),
+            horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center,
+        ) {
+            if (s == Severity.Cancelled) {
+                Icon(Icons.Filled.Block, "Cancelado", tint = s.color, modifier = Modifier.size(18.dp))
+                Text("Cancel.", color = s.color, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+            } else {
+                Text("+${t.delayMin ?: 0}", color = s.color, fontSize = 16.sp, fontWeight = FontWeight.Bold, maxLines = 1, softWrap = false)
+                Text("min", color = s.color, fontSize = 9.sp)
+            }
+        }
+        Spacer(Modifier.width(10.dp))
+        Column(Modifier.weight(1f)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Service.from(t.service)?.let {
+                    Text(it.label, color = Gray950, fontSize = 9.sp, fontWeight = FontWeight.Bold, maxLines = 1, softWrap = false,
+                        modifier = Modifier.clip(RoundedCornerShape(5.dp)).background(AndenYellow).padding(horizontal = 5.dp, vertical = 1.dp))
+                    Spacer(Modifier.width(6.dp))
+                }
+                Text(listOfNotNull(t.line, t.label).joinToString(" · "), color = AndenWhite, fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
+                    maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+            val sub = t.route ?: t.stopName?.let { "Última parada: $it" }
+            if (sub != null) Text(sub, color = AndenWhite, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            val where = listOfNotNull(t.stopName?.takeIf { t.route != null }?.let { "Última parada: $it" }, regionName).joinToString(" · ")
+            if (where.isNotEmpty()) Text(where, color = Gray400, fontSize = 10.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
     }
 }
