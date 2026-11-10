@@ -26,11 +26,17 @@ const $ = (s) => document.querySelector(s);
 const esc = (v) => String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const norm = (s) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
 const regionName = (id) => S.regions.find((r) => r.id === id)?.name ?? id ?? '';
-// La caché de GitHub Pages puede durar 10 min: un parámetro distinto cada minuto fuerza el dato más reciente.
-async function j(path) {
-  const r = await fetch(path + '?v=' + Math.floor(Date.now() / 60000));
+// Los datos se piden cada 30 s. La caché de GitHub Pages puede durar 10 min: un parámetro distinto cada 30 s fuerza el dato más reciente.
+const REFRESH_MS = 30000;
+async function fetchJson(path) {
+  const r = await fetch(path + '?v=' + Math.floor(Date.now() / REFRESH_MS));
   if (!r.ok) throw new Error('HTTP ' + r.status);
   return r.json();
+}
+// Un fallo puntual (p. ej. Pages redesplegándose) se reintenta una vez antes de darlo por malo.
+async function j(path) {
+  try { return await fetchJson(path); }
+  catch (e) { await new Promise((ok) => setTimeout(ok, 1500)); return fetchJson(path); }
 }
 const ageText = (sec) => (sec < 90 ? Math.max(sec, 0) + ' s' : sec < 5400 ? Math.round(sec / 60) + ' min' : Math.round(sec / 3600) + ' h');
 
@@ -40,12 +46,26 @@ const inRegion = (list) => (S.region ? list.filter((x) => x.region === S.region)
 const delayed = (list) => list.filter((t) => sevOf(t));
 
 // ---------- Datos ----------
+let loading = false;
 async function loadAll() {
+  if (loading) return;
+  loading = true;
   try {
-    const [t, st, al] = await Promise.all([j('api/v1/trains.json'), j('api/v1/stops.json'), j('api/v1/alerts.json')]);
-    S.trains = t.trains; S.generatedAt = t.generatedAt; S.stops = st.stops; S.alerts = al.alerts; S.error = null;
-  } catch (e) { S.error = e.message; }
+    // Cada fichero va por separado: si uno falla se conservan los últimos datos buenos de los demás.
+    const [t, st, al, rg] = await Promise.allSettled([
+      j('api/v1/trains.json'), j('api/v1/stops.json'), j('api/v1/alerts.json'),
+      S.regions.length ? Promise.resolve(null) : j('api/v1/regions.json'),
+    ]);
+    if (t.status === 'fulfilled') { S.trains = t.value.trains; S.generatedAt = t.value.generatedAt; }
+    if (st.status === 'fulfilled') S.stops = st.value.stops;
+    if (al.status === 'fulfilled') S.alerts = al.value.alerts;
+    if (rg.status === 'fulfilled' && rg.value) { S.regions = rg.value.regions; }
+    const failed = [t, st, al].find((x) => x.status === 'rejected');
+    S.error = failed ? failed.reason?.message ?? 'sin conexión' : null;
+  } finally { loading = false; }
   renderAll();
+  // Si aún no hay datos (primera carga fallida), se reintenta pronto en lugar de esperar al ciclo siguiente.
+  if (!S.trains.length || !S.regions.length) setTimeout(loadAll, 5000);
 }
 
 function renderAge() {
@@ -357,6 +377,9 @@ $('#detail-close').addEventListener('click', () => ($('#detail').hidden = true))
   // Enlaces directos: #retrasos, #avisos, #estaciones
   const direct = { retrasos: 'delays', avisos: 'alerts', estaciones: 'stations' }[location.hash.slice(1)];
   if (direct) setTab(direct);
-  setInterval(loadAll, 60000);
+  setInterval(loadAll, REFRESH_MS);
   setInterval(renderAge, 15000);
+  // Las pestañas en segundo plano frenan los temporizadores: al volver (o recuperar la conexión) se actualiza al momento.
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) loadAll(); });
+  window.addEventListener('online', loadAll);
 })();
