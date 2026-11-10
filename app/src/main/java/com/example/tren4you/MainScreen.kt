@@ -66,12 +66,16 @@ enum class Section(val label: String, val icon: ImageVector) {
  * dibujan encima.
  */
 @Composable
-fun MainScreen() {
+fun MainScreen(openSection: String? = null, onOpened: () -> Unit = {}) {
     val context = LocalContext.current
     val prefs = remember { context.getSharedPreferences("anden", Context.MODE_PRIVATE) }
     // Modo oscuro del mapa: se elige en Ajustes y se recuerda
     var dark by remember { mutableStateOf(prefs.getBoolean("dark_map", false)) }
     var section by rememberSaveable { mutableStateOf(Section.Map) }
+    LaunchedEffect(openSection) {
+        Section.entries.firstOrNull { it.name == openSection }?.let { section = it; onOpened() }
+    }
+    var notify by remember { mutableStateOf(SafetyNotifier.enabled(context)) }
     var regions by remember { mutableStateOf<List<Region>>(emptyList()) }
     var region by remember { mutableStateOf<Region?>(null) } // null = toda España
     var trains by remember { mutableStateOf<List<Train>>(emptyList()) }
@@ -119,7 +123,7 @@ fun MainScreen() {
     }
     LaunchedEffect(Unit) {
         while (true) {
-            runCatching { TrainsApi.safety() }.onSuccess { safety = it }
+            runCatching { TrainsApi.safety() }.onSuccess { safety = it; SafetyNotifier.notifyCritical(context, it.signals) }
             delay(REFRESH_MS)
         }
     }
@@ -137,7 +141,7 @@ fun MainScreen() {
         bottomBar = {
             NavigationBar(containerColor = Gray800) {
                 for (s in Section.entries) {
-                    val badge = when (s) { Section.Delays -> delayedBadge; Section.Alerts -> alertBadge; Section.Safety -> safety?.signals?.size ?: 0; else -> 0 }
+                    val badge = when (s) { Section.Delays -> delayedBadge; Section.Alerts -> alertBadge; Section.Safety -> safety?.signals?.count { it.level != "info" } ?: 0; else -> 0 }
                     NavigationBarItem(
                         selected = section == s,
                         onClick = { section = s },
@@ -193,7 +197,13 @@ fun MainScreen() {
                             if (train != null) { pendingTrain = train; section = Section.Map }
                             else if (near != null) { pendingStation = near; section = Section.Map }
                         }
-                        Section.Settings -> SettingsScreen(dark) { dark = it; prefs.edit().putBoolean("dark_map", it).apply() }
+                        Section.Settings -> SettingsScreen(
+                            dark, { dark = it; prefs.edit().putBoolean("dark_map", it).apply() },
+                            notify, {
+                                notify = it; SafetyNotifier.setEnabled(context, it)
+                                if (it) (context as? MainActivity)?.requestNotificationPermission()
+                            },
+                        )
                         Section.Map -> {}
                     }
                 }

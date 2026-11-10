@@ -10,12 +10,15 @@
 // Límites: posiciones con unos minutos de retraso (y estimadas en larga distancia), sin velocidad real ni vía/sentido,
 // y Iryo, Ouigo y Alvia/AVE de otras compañías no publican datos abiertos: lo que no se ve, no se vigila.
 
+/** Tres niveles: info (conviene saberlo), warning (atención), critical (actuar/avisar ya; genera notificación). */
+export type Level3 = 'info' | 'warning' | 'critical';
+
 export type SignalKind = 'closing_in' | 'stopped_train' | 'accident' | 'signalling' | 'track' | 'power' | 'cascade';
 
 export interface SafetySignal {
   id: string;
   kind: SignalKind;
-  severity: 'warning' | 'critical';
+  severity: Level3;
   title: string;
   detail: string;
   lat?: number;
@@ -117,7 +120,7 @@ const RE = {
   halted: /interrump|suspend|cortad|detenid|sin circulaci|no hay circulaci|circulaci[oó]n (interrumpida|suspendida)/i,
 };
 
-export function classifyAlertText(text: string): { kind: SignalKind; severity: 'warning' | 'critical' } | null {
+export function classifyAlertText(text: string): { kind: SignalKind; severity: Level3 } | null {
   const halted = RE.halted.test(text);
   if (RE.accident.test(text)) return { kind: 'accident', severity: 'critical' };
   if (RE.signalling.test(text)) return { kind: 'signalling', severity: halted ? 'critical' : 'warning' };
@@ -231,7 +234,7 @@ export function trainSignals(input: SafetyInput, official: SafetySignal[] = []):
       const eta = Number.isFinite(c.etaMin) ? `, a este ritmo llegaría en ~${Math.max(1, Math.round(c.etaMin))} min` : '';
       out.push({
         id: `closing:${c.m.t.tripId}>${s.t.tripId}`, kind: 'closing_in',
-        severity: corroborated && c.etaMin < SAFETY.criticalEtaMin && c.d <= SAFETY.criticalDistKm ? 'critical' : 'warning',
+        severity: !(c.etaMin < SAFETY.criticalEtaMin && c.d <= SAFETY.criticalDistKm) ? 'info' : corroborated ? 'critical' : 'warning',
         title: TITLES.closing_in,
         detail: `${name(c.m.t)} se acerca a ${name(s.t)}, detenido en vía desde hace ≥${hhmmss(s.dtSec)}: ${c.d.toFixed(1)} km de separación${eta}.`,
         lat: s.t.lat, lon: s.t.lon, region: s.t.region ?? undefined,
@@ -239,7 +242,7 @@ export function trainSignals(input: SafetyInput, official: SafetySignal[] = []):
       });
     } else if (s.dtSec >= SAFETY.stoppedAloneSec) {
       out.push({
-        id: `stopped:${s.t.tripId}`, kind: 'stopped_train', severity: 'warning', title: TITLES.stopped_train,
+        id: `stopped:${s.t.tripId}`, kind: 'stopped_train', severity: s.dtSec >= SAFETY.criticalStoppedSec ? 'warning' : 'info', title: TITLES.stopped_train,
         detail: `${name(s.t)} lleva ≥${hhmmss(s.dtSec)} sin moverse fuera de estación${s.t.delayMin ? ` (retraso ${s.t.delayMin} min)` : ''}.`,
         lat: s.t.lat, lon: s.t.lon, region: s.t.region ?? undefined, tripIds: [s.t.tripId],
         routeIds: s.t.routeId ? [s.t.routeId] : [], since,
@@ -281,7 +284,7 @@ export function safetyStats(input: SafetyInput) {
   };
 }
 
-const RANK = { critical: 0, warning: 1 } as const;
+const RANK: Record<Level3, number> = { critical: 0, warning: 1, info: 2 };
 
 export function computeSafety(input: SafetyInput): SafetySignal[] {
   const official = alertSignals(input.alerts);

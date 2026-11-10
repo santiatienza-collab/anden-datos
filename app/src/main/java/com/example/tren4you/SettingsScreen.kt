@@ -69,7 +69,7 @@ private fun sourceLabel(id: String) = when (id) {
 }
 
 @Composable
-fun SettingsScreen(dark: Boolean, onDark: (Boolean) -> Unit) {
+fun SettingsScreen(dark: Boolean, onDark: (Boolean) -> Unit, notify: Boolean, onNotify: (Boolean) -> Unit) {
     var sources by remember { mutableStateOf<SourcesInfo?>(null) }
     var failMsg by remember { mutableStateOf<String?>(null) }
     LaunchedEffect(Unit) {
@@ -91,6 +91,22 @@ fun SettingsScreen(dark: Boolean, onDark: (Boolean) -> Unit) {
                 }
                 Switch(
                     checked = dark, onCheckedChange = onDark,
+                    colors = SwitchDefaults.colors(
+                        checkedThumbColor = Gray950, checkedTrackColor = AndenYellow,
+                        uncheckedThumbColor = Gray400, uncheckedTrackColor = Gray900,
+                    ),
+                )
+            }
+        }
+
+        Section("Seguridad") {
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text("Notificar alertas críticas", color = AndenWhite, fontSize = 15.sp)
+                    Text("Accidente, fallo de señalización o riesgo de alcance. Con la app cerrada se comprueba cada ~15 min.", color = Gray400, fontSize = 12.sp)
+                }
+                Switch(
+                    checked = notify, onCheckedChange = onNotify,
                     colors = SwitchDefaults.colors(
                         checkedThumbColor = Gray950, checkedTrackColor = AndenYellow,
                         uncheckedThumbColor = Gray400, uncheckedTrackColor = Gray900,

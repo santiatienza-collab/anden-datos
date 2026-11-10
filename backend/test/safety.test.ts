@@ -66,7 +66,7 @@ test('sin instantánea anterior solo se vigilan avisos y acumulación de retraso
   assert.equal(s.find((x) => x.kind === 'signalling')!.severity, 'critical');
 });
 
-test('la misma aproximación sin aviso oficial ni tiempo largo de parada se queda en atención (evita falsas alarmas)', () => {
+test('la misma aproximación sin aviso oficial ni tiempo largo de parada se queda en atención, no crítico (evita falsas alarmas)', () => {
   const prev = prevOf([['STOP', 40.0, 700], ['MOVE', 39.87, 700]]);
   const trains = [train('STOP', 40.0, 900), train('MOVE', 39.92, 900)];
   const c = computeSafety({ now: 1300, trains, alerts: [], prev, stops }).find((x) => x.kind === 'closing_in');
@@ -78,4 +78,21 @@ test('parado ≥8 min con otro tren acercándose se escala a crítico aunque no 
   const trains = [train('STOP', 40.0, 900), train('MOVE', 39.92, 900)];
   const c = computeSafety({ now: 1300, trains, alerts: [], prev, stops }).find((x) => x.kind === 'closing_in');
   assert.equal(c!.severity, 'critical');
+});
+
+test('tres niveles: lejos = info, cerca sin corroborar = atención, cerca y corroborado = crítico', () => {
+  const far = prevOf([['STOP', 40.0, 700], ['MOVE', 39.8, 700]]);
+  const lvl = (prev: ReturnType<typeof prevOf>, moveNow: number, alerts: any[] = []) =>
+    computeSafety({ now: 1300, trains: [train('STOP', 40.0, 900), train('MOVE', moveNow, 900)], alerts, prev, stops })
+      .find((x) => x.kind === 'closing_in')!.severity;
+  assert.equal(lvl(far, 39.85), 'info');
+  assert.equal(lvl(prevOf([['STOP', 40.0, 700], ['MOVE', 39.87, 700]]), 39.92), 'warning');
+  assert.equal(lvl(prevOf([['STOP', 40.0, 700], ['MOVE', 39.87, 700]]), 39.92,
+    [{ id: 'S1', text: 'Fallo de señalización', active: true, routeIds: ['R1'] }]), 'critical');
+});
+
+test('tren detenido solo: info al principio, atención a partir de 8 min', () => {
+  const kind = (since: number) => computeSafety({ now: 1300, trains: [train('A', 40.0, 900)], alerts: [], prev: prevOf([['A', 40.0, since]]), stops })[0];
+  assert.equal(kind(600).severity, 'info');
+  assert.equal(kind(300).severity, 'warning');
 });

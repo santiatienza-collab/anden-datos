@@ -2,6 +2,9 @@ package com.example.tren4you
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.IntrinsicSize
@@ -29,6 +32,11 @@ import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -50,7 +58,8 @@ import org.json.JSONObject
 data class SafetySignal(
     val id: String,
     val kind: String,
-    val critical: Boolean,
+    /** info | warning | critical */
+    val level: String,
     val title: String,
     val detail: String,
     val lat: Double?,
@@ -66,7 +75,7 @@ fun parseSafety(o: JSONObject): SafetyData {
         val x = arr.getJSONObject(it)
         val ids = x.optJSONArray("tripIds")
         SafetySignal(
-            id = x.getString("id"), kind = x.optString("kind"), critical = x.optString("severity") == "critical",
+            id = x.getString("id"), kind = x.optString("kind"), level = x.optString("severity").ifEmpty { "warning" },
             title = x.optString("title"), detail = x.optString("detail"),
             lat = if (x.has("lat") && !x.isNull("lat")) x.getDouble("lat") else null,
             lon = if (x.has("lon") && !x.isNull("lon")) x.getDouble("lon") else null,
@@ -78,6 +87,9 @@ fun parseSafety(o: JSONObject): SafetyData {
         o.optJSONObject("stats")?.optInt("compared") ?: 0, signals,
     )
 }
+
+private fun levelColor(l: String) = when (l) { "critical" -> LevelRed; "warning" -> LevelAmber; else -> Gray400 }
+private fun levelLabel(l: String) = when (l) { "critical" -> "CRÍTICO"; "warning" -> "ATENCIÓN"; else -> "INFORMACIÓN" }
 
 private fun kindIcon(kind: String): ImageVector = when (kind) {
     "accident" -> Icons.Filled.Report
@@ -96,8 +108,21 @@ fun SafetyPage(data: SafetyData?, loaded: Boolean, onPick: (SafetySignal) -> Uni
             Text("Seguridad", color = AndenYellow, fontSize = 22.sp, fontWeight = FontWeight.Bold)
             Text("Vigilancia con datos abiertos", color = Gray400, fontSize = 12.sp)
         }
+        var filter by remember { mutableStateOf<String?>(null) }
+        val all = data?.signals.orEmpty()
+        if (all.isNotEmpty()) {
+            Row(Modifier.padding(horizontal = 14.dp).horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                LevelChip("Todas", all.size, null, filter == null) { filter = null }
+                for (l in listOf("critical", "warning", "info")) {
+                    LevelChip(levelLabel(l).lowercase().replaceFirstChar { it.uppercase() }, all.count { it.level == l }, levelColor(l), filter == l) {
+                        filter = if (filter == l) null else l
+                    }
+                }
+            }
+            Spacer(Modifier.height(8.dp))
+        }
         LazyColumn(Modifier.weight(1f).padding(horizontal = 14.dp)) {
-            val signals = data?.signals.orEmpty()
+            val signals = if (filter == null) all else all.filter { it.level == filter }
             if (!loaded || data == null) {
                 item(key = "loading") { Text("Cargando…", color = Gray400, fontSize = 13.sp, modifier = Modifier.padding(8.dp)) }
             } else if (signals.isEmpty()) {
@@ -130,8 +155,23 @@ fun SafetyPage(data: SafetyData?, loaded: Boolean, onPick: (SafetySignal) -> Uni
 }
 
 @Composable
+private fun LevelChip(label: String, count: Int, color: Color?, selected: Boolean, onClick: () -> Unit) {
+    Row(
+        Modifier.clip(RoundedCornerShape(10.dp)).background(if (selected) AndenYellow else Gray800).clickable(onClick = onClick)
+            .padding(horizontal = 12.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        if (color != null) {
+            Box(Modifier.size(9.dp).clip(RoundedCornerShape(5.dp)).background(color))
+            Spacer(Modifier.width(6.dp))
+        }
+        Text("$label $count", color = if (selected) Gray900 else AndenWhite, fontSize = 13.sp, fontWeight = FontWeight.Medium, maxLines = 1, softWrap = false)
+    }
+}
+
+@Composable
 private fun SignalCard(s: SafetySignal, onClick: () -> Unit) {
-    val color = if (s.critical) LevelRed else LevelAmber
+    val color = levelColor(s.level)
     Row(
         Modifier.fillMaxWidth().padding(vertical = 4.dp).clip(RoundedCornerShape(14.dp)).background(Gray800)
             .clickable(enabled = s.lat != null, onClick = onClick).height(IntrinsicSize.Min),
@@ -145,7 +185,7 @@ private fun SignalCard(s: SafetySignal, onClick: () -> Unit) {
                 Spacer(Modifier.height(2.dp))
                 Text(s.detail, color = Gray400, fontSize = 13.sp)
                 Spacer(Modifier.height(6.dp))
-                Text(if (s.critical) "CRÍTICO" else "ATENCIÓN", color = color, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                Text(levelLabel(s.level), color = color, fontSize = 10.sp, fontWeight = FontWeight.Bold)
             }
         }
     }

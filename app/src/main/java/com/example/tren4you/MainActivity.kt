@@ -1,6 +1,13 @@
 package com.example.tren4you
 
+import android.Manifest
+import android.content.Intent
 import android.graphics.Color
+import android.os.Build
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
@@ -9,6 +16,16 @@ import androidx.activity.enableEdgeToEdge
 import com.example.tren4you.ui.theme.Tren4youTheme
 
 class MainActivity : ComponentActivity() {
+    /** Sección que debe abrirse al llegar desde una notificación (p. ej. "Safety"). */
+    private var startSection by mutableStateOf<String?>(null)
+
+    private val askNotifications = registerForActivityResult(ActivityResultContracts.RequestPermission()) { }
+
+    /** Pide el permiso de notificaciones (Android 13+) si falta. */
+    fun requestNotificationPermission() {
+        if (Build.VERSION.SDK_INT >= 33 && !SafetyNotifier.hasPermission(this)) askNotifications.launch(Manifest.permission.POST_NOTIFICATIONS)
+    }
+
     private lateinit var appOpen: AppOpenAdManager
     private var wasInBackground = false
 
@@ -17,8 +34,21 @@ class MainActivity : ComponentActivity() {
         val dark = SystemBarStyle.dark(Color.TRANSPARENT)
         enableEdgeToEdge(statusBarStyle = dark, navigationBarStyle = dark)
         initAds(this)
+        startSection = intent?.getStringExtra(SafetyNotifier.EXTRA_SECTION)
+        SafetyNotifier.ensureChannel(this)
+        SafetyNotifier.schedule(this)
+        if (SafetyNotifier.enabled(this) && !getSharedPreferences("anden", MODE_PRIVATE).getBoolean("asked_notif", false)) {
+            getSharedPreferences("anden", MODE_PRIVATE).edit().putBoolean("asked_notif", true).apply()
+            requestNotificationPermission()
+        }
         appOpen = AppOpenAdManager(this).also { it.load() }
-        setContent { Tren4youTheme { MainScreen() } }
+        setContent { Tren4youTheme { MainScreen(startSection) { startSection = null } } }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        startSection = intent.getStringExtra(SafetyNotifier.EXTRA_SECTION)
     }
 
     override fun onStop() {
