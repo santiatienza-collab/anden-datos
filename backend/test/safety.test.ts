@@ -24,11 +24,12 @@ test('clasifica avisos de accidente, señalización, vía y energía', () => {
   assert.equal(classifyAlertText('Huelga general: el servicio podría verse afectado'), null);
 });
 
-test('Urda: un tren en marcha se acerca por detrás a uno detenido en vía → crítico', () => {
+test('Urda: aproximación por detrás a un tren detenido + aviso oficial de señalización → crítico', () => {
   // Detenido en 40.00 (no se mueve), su próxima parada está al norte. El otro viene del sur a ~100 km/h.
   const prev = prevOf([['STOP', 40.0, 700], ['MOVE', 39.87, 700]]);
   const trains = [train('STOP', 40.0, 900), train('MOVE', 39.92, 900)];
-  const s = computeSafety({ now: 1300, trains, alerts: [], prev, stops });
+  const alerts = [{ id: 'S1', text: 'Fallo de señalización entre A y B', active: true, routeIds: ['R1'] }];
+  const s = computeSafety({ now: 1300, trains, alerts, prev, stops });
   const c = s.find((x) => x.kind === 'closing_in');
   assert.ok(c, 'debe detectar la aproximación');
   assert.equal(c!.severity, 'critical');
@@ -63,4 +64,18 @@ test('sin instantánea anterior solo se vigilan avisos y acumulación de retraso
   const s = computeSafety({ now: 1300, trains: late, alerts, stops });
   assert.deepEqual(s.map((x) => x.kind).sort(), ['cascade', 'signalling']);
   assert.equal(s.find((x) => x.kind === 'signalling')!.severity, 'critical');
+});
+
+test('la misma aproximación sin aviso oficial ni tiempo largo de parada se queda en atención (evita falsas alarmas)', () => {
+  const prev = prevOf([['STOP', 40.0, 700], ['MOVE', 39.87, 700]]);
+  const trains = [train('STOP', 40.0, 900), train('MOVE', 39.92, 900)];
+  const c = computeSafety({ now: 1300, trains, alerts: [], prev, stops }).find((x) => x.kind === 'closing_in');
+  assert.equal(c!.severity, 'warning');
+});
+
+test('parado ≥8 min con otro tren acercándose se escala a crítico aunque no haya aviso oficial', () => {
+  const prev = prevOf([['STOP', 40.0, 400], ['MOVE', 39.87, 700]]);
+  const trains = [train('STOP', 40.0, 900), train('MOVE', 39.92, 900)];
+  const c = computeSafety({ now: 1300, trains, alerts: [], prev, stops }).find((x) => x.kind === 'closing_in');
+  assert.equal(c!.severity, 'critical');
 });

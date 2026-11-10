@@ -85,6 +85,8 @@ export const SAFETY = {
   /** Crítico solo si llegaría en menos de esto Y está a menos de esta distancia (evita falsos críticos a decenas de km). */
   criticalEtaMin: 10,
   criticalDistKm: 10,
+  /** Sin un aviso oficial que lo corrobore, solo se escala a crítico si el tren lleva parado al menos esto. */
+  criticalStoppedSec: 480,
   prevMinAgeSec: 120,
   prevMaxAgeSec: 1200,
   cascadeMinTrains: 5,
@@ -188,7 +190,7 @@ function nearNextStop(t: SafetyTrain, stops: SafetyInput['stops']): boolean {
   return false;
 }
 
-export function trainSignals(input: SafetyInput): SafetySignal[] {
+export function trainSignals(input: SafetyInput, official: SafetySignal[] = []): SafetySignal[] {
   const tracked = track(input);
   const out: SafetySignal[] = [];
 
@@ -221,12 +223,15 @@ export function trainSignals(input: SafetyInput): SafetySignal[] {
     }
     closers.sort((a, b) => a.d - b.d);
     const since = s.t.updatedAt - s.dtSec;
+    // Corroboración: un aviso oficial de accidente/señalización/vía/energía en su línea o comunidad, o mucho tiempo parado.
+    const corroborated = s.dtSec >= SAFETY.criticalStoppedSec ||
+      official.some((o) => (s.t.routeId && o.routeIds.includes(s.t.routeId)) || (!!s.t.region && o.region === s.t.region));
     if (closers.length) {
       const c = closers[0];
       const eta = Number.isFinite(c.etaMin) ? `, a este ritmo llegaría en ~${Math.max(1, Math.round(c.etaMin))} min` : '';
       out.push({
         id: `closing:${c.m.t.tripId}>${s.t.tripId}`, kind: 'closing_in',
-        severity: c.etaMin < SAFETY.criticalEtaMin && c.d <= SAFETY.criticalDistKm ? 'critical' : 'warning',
+        severity: corroborated && c.etaMin < SAFETY.criticalEtaMin && c.d <= SAFETY.criticalDistKm ? 'critical' : 'warning',
         title: TITLES.closing_in,
         detail: `${name(c.m.t)} se acerca a ${name(s.t)}, detenido en vía desde hace ≥${hhmmss(s.dtSec)}: ${c.d.toFixed(1)} km de separación${eta}.`,
         lat: s.t.lat, lon: s.t.lon, region: s.t.region ?? undefined,
@@ -279,7 +284,8 @@ export function safetyStats(input: SafetyInput) {
 const RANK = { critical: 0, warning: 1 } as const;
 
 export function computeSafety(input: SafetyInput): SafetySignal[] {
-  return [...alertSignals(input.alerts), ...trainSignals(input), ...cascadeSignals(input)]
+  const official = alertSignals(input.alerts);
+  return [...official, ...trainSignals(input, official), ...cascadeSignals(input)]
     .sort((a, b) => RANK[a.severity] - RANK[b.severity])
     .slice(0, 60);
 }
