@@ -29,20 +29,27 @@ export async function loadTmb(now: number): Promise<{ stops: Stop[]; boards: Map
   const lineCodes: number[] = [...new Set<number>((live.linies ?? []).map((l: any) => l.codi_linia))];
 
   const stops = new Map<string, Stop>();
+  // En los enlaces TMB da una estación por línea: se fusionan las del mismo nombre y a menos de ~400 m.
+  const alias = new Map<string, string>();
+  const norm = (x: string) => x.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim();
   for (const code of lineCodes) {
     let fc: any;
     try { fc = await get(`/transit/linies/metro/${code}/estacions`, auth); } catch { continue; } // p. ej. funicular sin estaciones
     for (const f of fc.features ?? []) {
       const p = f.properties, [lon, lat] = f.geometry.coordinates;
       const sid = `tmb-${p.CODI_ESTACIO}`;
-      if (!stops.has(sid)) stops.set(sid, { id: sid, name: p.NOM_ESTACIO, lat, lon });
+      if (stops.has(sid) || alias.has(sid)) continue;
+      const twin = [...stops.values()].find((o) => norm(o.name) === norm(p.NOM_ESTACIO) && Math.abs(o.lat - lat) < 0.004 && Math.abs(o.lon - lon) < 0.004);
+      if (twin) alias.set(sid, twin.id);
+      else stops.set(sid, { id: sid, name: p.NOM_ESTACIO, lat, lon });
     }
   }
 
   const boards = new Map<string, any[]>();
   for (const l of live.linies ?? []) {
     for (const e of l.estacions ?? []) {
-      const sid = `tmb-${e.codi_estacio}`;
+      const raw = `tmb-${e.codi_estacio}`;
+      const sid = alias.get(raw) ?? raw;
       if (!stops.has(sid)) continue;
       for (const t of e.linies_trajectes ?? []) {
         for (const n of t.propers_trens ?? []) {
