@@ -178,6 +178,8 @@ fun StationsContent(
                 color = Gray400, fontSize = 13.sp, modifier = Modifier.padding(14.dp),
             )
         } else LazyColumn(Modifier.weight(1f, fill = false).padding(horizontal = 14.dp)) {
+            // Anuncio nativo de prueba (AdMob) al principio de la lista, fuera de las búsquedas.
+            if (!searching) item(key = "ad") { NativeAdCard(Modifier.padding(vertical = 6.dp)) }
             // Clave con el índice: una clave repetida cerraría la app.
             items(tree.size, key = { i ->
                 when (val n = tree[i]) {
