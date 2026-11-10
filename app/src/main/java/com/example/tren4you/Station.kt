@@ -15,6 +15,8 @@ data class Station(
     val accessibilityIssue: Boolean = false,
     val region: String? = null,
     val province: String? = null,
+    /** Estación de metro (Metro de Barcelona, Metro Bilbao). */
+    val metro: Boolean = false,
 )
 
 data class Region(val id: String, val name: String, val west: Double, val south: Double, val east: Double, val north: Double)
@@ -85,6 +87,7 @@ fun parseStation(o: JSONObject) = Station(
     alerts = o.optInt("alerts"), accessibilityIssue = o.optBoolean("accessibility"),
     region = if (o.isNull("region")) null else o.optString("region").ifEmpty { null },
     province = if (o.isNull("province")) null else o.optString("province").ifEmpty { null },
+    metro = o.optBoolean("metro"),
 )
 
 fun parseStations(arr: JSONArray) = (0 until arr.length()).map { parseStation(arr.getJSONObject(it)) }

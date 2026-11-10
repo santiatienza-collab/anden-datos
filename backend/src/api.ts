@@ -52,7 +52,7 @@ export function stopsResponse(store: Store) {
   }
   return {
     stops: [...store.stops.values()].map((s) => ({
-      ...s, key: stopKey(s.id), region: store.stopRegion(s), province: store.stopProvince(s), ...(flagged.get(s.id) ?? { alerts: 0, accessibility: false }),
+      ...s, key: stopKey(s.id), metro: /^(tmb|mbi)-/.test(s.id), region: store.stopRegion(s), province: store.stopProvince(s), ...(flagged.get(s.id) ?? { alerts: 0, accessibility: false }),
     })),
   };
 }

@@ -24,6 +24,7 @@ import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.NotAccessible
 import androidx.compose.material.icons.filled.Place
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Subway
 import androidx.compose.material.icons.filled.Train
 import androidx.compose.material.icons.filled.UnfoldLess
 import androidx.compose.material.icons.filled.UnfoldMore
@@ -275,7 +276,8 @@ private fun StationLeaf(n: Node.Leaf, onClick: () -> Unit) {
             Modifier.weight(1f).clip(RoundedCornerShape(8.dp)).clickable(onClick = onClick).padding(horizontal = 8.dp, vertical = 9.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Icon(Icons.Filled.Train, null, tint = Gray600, modifier = Modifier.size(15.dp))
+            if (s.metro) Icon(Icons.Filled.Subway, "Metro", tint = AndenYellow, modifier = Modifier.size(16.dp))
+            else Icon(Icons.Filled.Train, null, tint = Gray600, modifier = Modifier.size(15.dp))
             Spacer(Modifier.width(8.dp))
             Column(Modifier.weight(1f)) {
                 Text(s.name, color = AndenWhite, fontSize = 14.sp)

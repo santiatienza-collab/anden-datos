@@ -254,7 +254,7 @@ function renderStations() {
   let body = '';
   if (q.length >= 2) {
     const res = pool.filter((s) => norm(s.name).includes(q)).sort((a, b) => Number(norm(b.name).startsWith(q)) - Number(norm(a.name).startsWith(q))).slice(0, 80);
-    body = '<div class="note">' + res.length + ' resultado' + (res.length === 1 ? '' : 's') + '</div>' + res.map((s) => '<div class="st" data-act="station" data-v="' + esc(s.id) + '"><span>' + esc(s.name) + ' <span class="note">' + esc(s.province ?? '') + '</span></span><span>' + mark(s) + '</span></div>').join('');
+    body = '<div class="note">' + res.length + ' resultado' + (res.length === 1 ? '' : 's') + '</div>' + res.map((s) => '<div class="st" data-act="station" data-v="' + esc(s.id) + '"><span>' + (s.metro ? 'Ⓜ️ ' : '') + esc(s.name) + ' <span class="note">' + esc(s.province ?? '') + '</span></span><span>' + mark(s) + '</span></div>').join('');
   } else {
     // Árbol: comunidad -> provincia -> estación
     const tree = {};
@@ -269,7 +269,7 @@ function renderStations() {
         const l = provs[p].sort((a, b) => Number(b.alerts > 0) - Number(a.alerts > 0) || a.name.localeCompare(b.name, 'es'));
         const open = S.onlyAlerts || pkeys.length === 1;
         return '<details class="prov"' + (open ? ' open' : '') + '><summary><span>' + esc(p) + '</span><em>' + cnt(l) + '</em></summary>' +
-          l.map((s) => '<div class="st" data-act="station" data-v="' + esc(s.id) + '"><span>🚉 ' + esc(s.name) + '</span><span>' + mark(s) + '</span></div>').join('') + '</details>';
+          l.map((s) => '<div class="st" data-act="station" data-v="' + esc(s.id) + '"><span>' + (s.metro ? 'Ⓜ️' : '🚉') + ' ' + esc(s.name) + '</span><span>' + mark(s) + '</span></div>').join('') + '</details>';
       }).join('');
       return '<details class="comm"' + (S.region || S.onlyAlerts ? ' open' : '') + '><summary><span>📍 ' + esc(rName(rid)) + '</span><em>' + cnt(all) + '</em></summary>' + inner + '</details>';
     }).join('');
