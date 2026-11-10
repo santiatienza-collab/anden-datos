@@ -291,11 +291,9 @@ fun MapScreen(
     pendingStation: Station?,
     pendingTrain: Train?,
     onPendingHandled: () -> Unit,
-    onSeeAllDelays: () -> Unit,
 ) {
     val context = LocalContext.current
     val density = LocalDensity.current
-    val screenHeightDp = LocalConfiguration.current.screenHeightDp
 
     var filter by remember { mutableStateOf<Level?>(null) }
     var selectedId by remember { mutableStateOf<String?>(null) }
@@ -304,10 +302,6 @@ fun MapScreen(
     var board by remember { mutableStateOf<StationBoard?>(null) }
     var boardError by remember { mutableStateOf<String?>(null) }
     var searching by remember { mutableStateOf(false) }
-    // Capas del mapa: todas activadas por defecto
-    var showTrains by remember { mutableStateOf(true) }
-    var showStations by remember { mutableStateOf(true) }
-    var showAlerts by remember { mutableStateOf(true) }
     var map by remember { mutableStateOf<MapLibreMap?>(null) }
     var styleReady by remember { mutableStateOf(false) }
     var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
@@ -355,18 +349,7 @@ fun MapScreen(
     LaunchedEffect(visibleStations, styleReady) {
         if (styleReady) map?.style?.getSourceAs<GeoJsonSource>(ST_SRC)?.setGeoJson(stationsGeoJson(visibleStations))
     }
-    // Visibilidad de las capas según los interruptores
-    LaunchedEffect(showTrains, showStations, showAlerts, styleReady) {
-        val style = map?.style ?: return@LaunchedEffect
-        if (!styleReady) return@LaunchedEffect
-        fun vis(on: Boolean) = visibility(if (on) Property.VISIBLE else Property.NONE)
-        style.getLayer(LAYER)?.setProperties(vis(showTrains))
-        style.getLayer(ST_LAYER)?.setProperties(vis(showStations))
-        style.getLayer(ST_LABELS)?.setProperties(vis(showStations))
-        style.getLayer(AL_LAYER)?.setProperties(vis(showAlerts))
-    }
-
-    // Encuadre: toda España al inicio; al elegir comunidad, se ajusta a ella. Deja libres la cabecera y la lista inferior.
+    // Encuadre: toda España al inicio; al elegir comunidad, se ajusta a ella. Deja libre la cabecera.
     var framed by remember { mutableStateOf(false) }
     LaunchedEffect(region, styleReady) {
         val m = map ?: return@LaunchedEffect
@@ -382,8 +365,8 @@ fun MapScreen(
         if (!framed) delay(300) // la primera vez, esperar a que el mapa tenga su tamaño definitivo
         with(density) {
             val h = m.height.toFloat().coerceAtLeast(1f)
-            val top = minOf(285.dp.roundToPx().toFloat(), h * 0.36f).toInt()
-            val bottom = minOf((screenHeightDp / 3 + 44).dp.roundToPx().toFloat(), h * 0.40f).toInt()
+            val top = minOf(215.dp.roundToPx().toFloat(), h * 0.36f).toInt()
+            val bottom = minOf(80.dp.roundToPx().toFloat(), h * 0.20f).toInt()
             val upd = CameraUpdateFactory.newLatLngBounds(bounds, 24.dp.roundToPx(), top, 24.dp.roundToPx(), bottom)
             if (framed) m.animateCamera(upd, 700) else { m.moveCamera(upd); framed = true }
         }
@@ -434,14 +417,7 @@ fun MapScreen(
             Spacer(Modifier.height(8.dp))
             RegionRow(regions, region, onPick = { onRegion(it); station = null; selectedId = null })
             Spacer(Modifier.weight(1f))
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                StatusLine(dataTimeSec, now, error)
-                Spacer(Modifier.weight(1f))
-                LayerToggles(
-                    showTrains, showStations, showAlerts,
-                    onTrains = { showTrains = !showTrains }, onStations = { showStations = !showStations }, onAlerts = { showAlerts = !showAlerts },
-                )
-            }
+            StatusLine(dataTimeSec, now, error)
             Spacer(Modifier.height(8.dp))
             when {
                 selected != null -> TrainCard(selected, onClose = { selectedId = null })
@@ -451,12 +427,7 @@ fun MapScreen(
                         nowSec = now / 1000, error = boardError, onToggle = { arrivals = it }, onClose = { station = null },
                     )
                 }
-                // Detalle de retrasos: un tercio de la pantalla
-                else -> DelaysPanel(
-                    trains = visible, regions = regions, levelFilter = filter,
-                    modifier = Modifier.height((screenHeightDp / 3).dp),
-                    onPick = { openTrain(it) }, onSeeAll = onSeeAllDelays,
-                )
+                else -> {}
             }
         }
 
@@ -596,37 +567,7 @@ private fun TopBar(
                     }
                 }
             }
-            Spacer(Modifier.height(6.dp))
-            Text(
-                "Cada punto es un tren. Naranja: 5–14 min de retraso · Rojo: 15 min o más, o cancelado · Anillo blanco: según horario.",
-                color = Gray400, fontSize = 10.sp, lineHeight = 13.sp,
-            )
         }
-    }
-}
-
-/** Interruptores de las capas del mapa. Todas activadas por defecto. */
-@Composable
-private fun LayerToggles(
-    trains: Boolean, stations: Boolean, alerts: Boolean,
-    onTrains: () -> Unit, onStations: () -> Unit, onAlerts: () -> Unit,
-) {
-    Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-        @Composable
-        fun toggle(label: String, icon: androidx.compose.ui.graphics.vector.ImageVector, on: Boolean, click: () -> Unit) {
-            Row(
-                Modifier.clip(RoundedCornerShape(50)).background(if (on) Gray800.copy(alpha = 0.95f) else Gray900.copy(alpha = 0.55f))
-                    .clickable(onClick = click).padding(horizontal = 9.dp, vertical = 6.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Icon(icon, label, tint = if (on) AndenYellow else Gray400, modifier = Modifier.size(15.dp))
-                Spacer(Modifier.width(4.dp))
-                Text(label, color = if (on) AndenWhite else Gray400, fontSize = 10.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, softWrap = false)
-            }
-        }
-        toggle("Trenes", Icons.Filled.Train, trains, onTrains)
-        toggle("Estac.", Icons.Filled.Place, stations, onStations)
-        toggle("Avisos", Icons.Filled.Warning, alerts, onAlerts)
     }
 }
 

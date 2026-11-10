@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Andén · Mapa y estado de trenes en España</title>
+  <meta name="description" content="Retrasos e incidencias de trenes en España en un mapa, con avisos, accesibilidad y horarios de estaciones.">
+  <link rel="icon" href="icon.png">
+  <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header>
+    <div class="brand"><img src="icon.png" alt="" width="28" height="28"><h1>Andén</h1><span class="sub">Retrasos e incidencias de trenes</span></div>
+    <select id="region" aria-label="Comunidad autónoma"><option value="">Toda España</option></select>
+  </header>
+
+  <nav id="tabs" aria-label="Secciones">
+    <button data-tab="map" class="on">🗺️ Mapa</button>
+    <button data-tab="delays">⏱️ Retrasos <b id="n-delays"></b></button>
+    <button data-tab="alerts">🔔 Avisos <b id="n-alerts"></b></button>
+    <button data-tab="stations">🚉 Estaciones</button>
+  </nav>
+
+  <main>
+    <section id="tab-map">
+      <div id="counters"></div>
+      <div id="map"></div>
+    </section>
+    <section id="tab-delays" hidden></section>
+    <section id="tab-alerts" hidden></section>
+    <section id="tab-stations" hidden></section>
+  </main>
+
+  <aside id="detail" hidden>
+    <button id="detail-close" aria-label="Cerrar">✕</button>
+    <div id="detail-body"></div>
+  </aside>
+
+  <footer>
+    <span id="age">Cargando…</span>
+    <span>Datos abiertos de Renfe, Euskotren, Metro Bilbao, FGC y Consorci de Transports de Mallorca (CC BY 4.0). Orientativos: consulta siempre los canales oficiales del operador.
+      Mapa © OpenStreetMap contributors · OpenMapTiles · OpenFreeMap.</span>
+  </footer>
+
+  <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

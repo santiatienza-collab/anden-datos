@@ -53,7 +53,7 @@ for (const id of store.stops.keys()) {
 }
 
 await writeFile(join(out, '.nojekyll'), '');
-await writeFile(join(out, 'index.html'), `<!doctype html><meta charset="utf-8"><title>Andén · datos</title>
+await writeFile(join(out, 'datos.html'), `<!doctype html><meta charset="utf-8"><title>Andén · índice de datos</title>
 <style>body{font:16px system-ui;background:#1c1c1f;color:#f5f5f7;max-width:40rem;margin:3rem auto;padding:0 1rem}a{color:#ffd60a}</style>
 <h1>Andén · datos de trenes</h1>
 <p>Instantánea generada el ${new Date(now * 1000).toISOString()}.</p>

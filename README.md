@@ -18,6 +18,10 @@ en GitHub Pages (`https://<usuario>.github.io/<repo>/api/v1/...`). La app solo l
 **Frescura de los datos:** GitHub ejecuta las tareas programadas como mucho cada 5 minutos y a veces las
 retrasa. Los datos de la app tienen normalmente entre 5 y 15 minutos de antigüedad (la app lo indica).
 
+## Web
+
+La misma información se puede consultar desde el navegador en `https://<usuario>.github.io/<repo>/` (carpeta `web/`: HTML, CSS y JavaScript sin compilar, mapa con MapLibre GL JS). El flujo de GitHub copia `web/` junto a los datos, así que se actualiza sola. Enlaces directos: `#retrasos`, `#avisos`, `#estaciones`. El índice de ficheros de datos está en `datos.html`.
+
 ## Puesta en marcha (una sola vez)
 
 1. Crea el repositorio **público** `anden-datos` en GitHub y sube este proyecto.
