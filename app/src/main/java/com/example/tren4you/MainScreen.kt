@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Map
@@ -34,6 +35,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
@@ -129,6 +131,14 @@ fun MainScreen(openSection: String? = null, onOpened: () -> Unit = {}) {
     }
     LaunchedEffect(Unit) { while (true) { now = System.currentTimeMillis(); delay(1_000) } }
 
+    // Alertas críticas: se consideran "vistas" al abrir Seguridad o al descartar el bocadillo.
+    var acked by remember { mutableStateOf(setOf<String>()) }
+    val criticals = remember(safety) { safety?.signals?.filter { it.level == "critical" }.orEmpty() }
+    val unseen = criticals.filter { it.id !in acked }
+    LaunchedEffect(section, criticals) {
+        if (section == Section.Safety && criticals.isNotEmpty()) acked = acked + criticals.map { it.id }
+    }
+
     val inRegion = remember(trains, region) { if (region == null) trains else trains.filter { it.region == region?.id } }
     val delayedBadge = remember(inRegion) { delayedCount(inRegion) }
     val alertBadge = remember(alerts, region) {
@@ -146,11 +156,15 @@ fun MainScreen(openSection: String? = null, onOpened: () -> Unit = {}) {
                         selected = section == s,
                         onClick = { section = s },
                         icon = {
-                            if (badge > 0) {
-                                BadgedBox(badge = { Badge(containerColor = LevelRed, contentColor = AndenWhite) { Text("$badge", fontSize = 10.sp) } }) {
-                                    Icon(s.icon, s.label)
-                                }
-                            } else Icon(s.icon, s.label)
+                            val blink = s == Section.Safety && unseen.isNotEmpty() && section != Section.Safety
+                            val tint = if (blink) LevelRed.copy(alpha = pulse(0.45f, 1f, 650)) else null
+                            Box(if (blink) Modifier.neonGlow() else Modifier, contentAlignment = Alignment.Center) {
+                                if (badge > 0) {
+                                    BadgedBox(badge = { Badge(containerColor = LevelRed, contentColor = AndenWhite) { Text("$badge", fontSize = 10.sp) } }) {
+                                        if (tint != null) Icon(s.icon, s.label, tint = tint) else Icon(s.icon, s.label)
+                                    }
+                                } else Icon(s.icon, s.label)
+                            }
                         },
                         label = { Text(s.label, fontSize = 9.sp, maxLines = 1, softWrap = false) },
                         colors = NavigationBarItemDefaults.colors(
@@ -207,6 +221,14 @@ fun MainScreen(openSection: String? = null, onOpened: () -> Unit = {}) {
                         Section.Map -> {}
                     }
                 }
+            }
+            if (unseen.isNotEmpty() && section != Section.Safety) {
+                CriticalBanner(
+                    unseen.first(), unseen.size,
+                    onOpen = { section = Section.Safety },
+                    onDismiss = { acked = acked + unseen.map { it.id } },
+                    modifier = Modifier.align(Alignment.TopCenter).statusBarsPadding().padding(horizontal = 12.dp, vertical = 8.dp),
+                )
             }
         }
     }
