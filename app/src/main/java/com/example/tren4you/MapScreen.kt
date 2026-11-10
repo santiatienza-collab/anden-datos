@@ -424,7 +424,7 @@ fun MapScreen(
                 selected != null -> TrainCard(selected, onClose = { selectedId = null })
                 station != null -> station?.let { st ->
                     StationSheet(
-                        board = board?.takeIf { it.station.id == st.id }, stationName = st.name, arrivals = arrivals,
+                        board = board?.takeIf { it.station.id == st.id }, stationName = st.name, station = st, arrivals = arrivals,
                         nowSec = now / 1000, error = boardError, onToggle = { arrivals = it }, onClose = { station = null },
                     )
                 }
@@ -468,6 +468,7 @@ private fun SearchOverlay(stations: List<Station>, onClose: () -> Unit, onPick: 
         LazyColumn {
             itemsIndexed(results, key = { i, s -> "${s.id}#$i" }) { _, s ->
                 Row(Modifier.fillMaxWidth().clickable { onPick(s) }.padding(vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+                    if (s.metro) { MetroGlyph(s, 18.dp); Spacer(Modifier.width(8.dp)) }
                     Text(s.name, color = AndenWhite, fontSize = 15.sp, modifier = Modifier.weight(1f))
                 }
             }

@@ -74,6 +74,7 @@ fun alertIcon(category: AlertCategory, element: AccessElement?, stationInaccessi
 fun StationSheet(
     board: StationBoard?,
     stationName: String,
+    station: Station? = null,
     arrivals: Boolean,
     nowSec: Long,
     error: String?,
@@ -83,6 +84,7 @@ fun StationSheet(
     Surface(shape = RoundedCornerShape(20.dp), color = Gray800, border = BorderStroke(1.dp, Gray600)) {
         Column(Modifier.fillMaxWidth().heightIn(max = 460.dp).padding(16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
+                if (station != null && station.metro) { MetroGlyph(station, 24.dp); Spacer(Modifier.width(8.dp)) }
                 Text(stationName, color = AndenWhite, fontSize = 18.sp, fontWeight = FontWeight.Bold,
                     maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
                 Icon(Icons.Filled.Close, "Cerrar", tint = Gray400,

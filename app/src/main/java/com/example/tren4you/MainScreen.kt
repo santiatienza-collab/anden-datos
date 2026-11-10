@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Map
 import androidx.compose.material.icons.filled.Notifications
@@ -25,7 +26,9 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -33,6 +36,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.tren4you.ui.theme.AndenWhite
 import com.example.tren4you.ui.theme.AndenYellow
@@ -76,6 +80,8 @@ fun MainScreen() {
     var alertsLoaded by remember { mutableStateOf(false) }
     var pendingStation by remember { mutableStateOf<Station?>(null) }
     var pendingTrain by remember { mutableStateOf<Train?>(null) }
+    val visited = remember { mutableStateListOf<Section>() }
+    LaunchedEffect(section) { if (section != Section.Map && section !in visited) visited.add(section) }
     var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
 
     // Comunidades: se reintenta hasta que haya conexión.
@@ -151,13 +157,16 @@ fun MainScreen() {
                 onPendingHandled = { pendingStation = null; pendingTrain = null },
                 dark = dark,
             )
-            if (section != Section.Map) {
-                // Capa opaca que además impide que los toques lleguen al mapa de debajo.
+            // Las secciones visitadas siguen montadas (ocultas con tamaño 0): así conservan la posición de lectura,
+            // la búsqueda, los filtros y las ramas abiertas al cambiar de pestaña y volver.
+            for (s in (visited + section).distinct().filter { it != Section.Map }) key(s) {
+                val active = section == s
                 Box(
-                    Modifier.fillMaxSize().background(Gray900)
+                    (if (active) Modifier.fillMaxSize() else Modifier.size(0.dp)).background(Gray900)
+                        // Capa opaca que además impide que los toques lleguen al mapa de debajo.
                         .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) {},
                 ) {
-                    when (section) {
+                    when (s) {
                         Section.Delays -> DelaysScreen(
                             trains, dataTimeSec, now, regions, region, onRegion = { region = it },
                             onPick = { pendingTrain = it; section = Section.Map },

@@ -250,8 +250,6 @@ function renderStations() {
   const base = inRegion(S.stops);
   const pool = S.onlyAlerts ? base.filter((s) => s.alerts > 0) : base;
   const q = norm(S.q.trim());
-  const TMB = '<svg width="16" height="16" viewBox="0 0 20 20" style="vertical-align:-3px" aria-label="Metro TMB"><path d="M10 0l10 10-10 10L0 10z" fill="#DA291C"/><text x="10" y="14" text-anchor="middle" font-size="11" font-weight="800" fill="#fff" font-family="system-ui,sans-serif">M</text></svg>';
-  const ico = (s) => (s.id.startsWith('tmb-') ? TMB : s.metro ? 'Ⓜ️' : '🚉');
   const mark = (s) => (s.accessibility ? '♿🚫' : s.alerts > 0 ? '⚠️' : '');
   let body = '';
   if (q.length >= 2) {
@@ -280,10 +278,13 @@ function renderStations() {
     '<div class="note" style="margin-bottom:8px">' + pool.length + ' estaciones' + (S.onlyAlerts ? ' con avisos' : ' · ' + base.filter((s) => s.alerts > 0).length + ' con avisos') + '</div>' + body;
 }
 
+const TMB = '<svg width="16" height="16" viewBox="0 0 20 20" style="vertical-align:-3px" aria-label="Metro TMB"><path d="M10 0l10 10-10 10L0 10z" fill="#DA291C"/><text x="10" y="10.6" text-anchor="middle" dominant-baseline="central" font-size="11" font-weight="800" fill="#fff" font-family="system-ui,sans-serif">M</text></svg>';
+const ico = (s) => (s.id.startsWith('tmb-') ? TMB : s.metro ? 'Ⓜ️' : '🚉');
+
 async function openStation(s) {
   const d = $('#detail'), body = $('#detail-body');
   d.hidden = false;
-  body.innerHTML = '<h3>' + esc(s.name) + '</h3><div class="note">Cargando…</div>';
+  body.innerHTML = '<h3>' + (s.metro ? ico(s) + ' ' : '') + esc(s.name) + '</h3><div class="note">Cargando…</div>';
   let b;
   try { b = await j('api/v1/stations/' + (s.key ?? s.id) + '/board.json'); } catch (e) { b = { departures: [], arrivals: [], alerts: [], accessibility: {}, empty: true }; }
   const acc = b.accessibility ?? {};
@@ -294,7 +295,7 @@ async function openStation(s) {
     return '<tr><td class="time">' + esc(r.expectedTime) + (r.status === 'delayed' ? '<s>' + esc(r.scheduledTime) + '</s>' : '') + '</td><td>' + (r.line ? '<span class="tag">' + esc(r.line) + '</span>' : '') + esc(r.otherEnd ?? '—') + '</td><td>' + st + '</td></tr>';
   }).join('');
   const table = (id, list) => '<table id="' + id + '"' + (id === 'arr' ? ' hidden' : '') + '>' + (rows(list) || '<tr><td class="note">Sin trenes en las próximas horas</td></tr>') + '</table>';
-  body.innerHTML = '<h3>' + esc(s.name) + '</h3>' + (accHtml ? '<div class="card" style="padding:8px 12px">' + accHtml + '</div>' : '') +
+  body.innerHTML = '<h3>' + (s.metro ? ico(s) + ' ' : '') + esc(s.name) + '</h3>' + (accHtml ? '<div class="card" style="padding:8px 12px">' + accHtml + '</div>' : '') +
     (b.alerts ?? []).map((a) => '<div class="note" style="margin-bottom:6px">' + esc(a.text) + '</div>').join('') +
     '<div class="row"><button class="chip on" id="bt-dep" data-act="board" data-v="dep">Salidas</button><button class="chip" id="bt-arr" data-act="board" data-v="arr">Llegadas</button></div>' +
     table('dep', b.departures ?? []) + table('arr', b.arrivals ?? []) + '<div class="note" style="margin-top:8px">Horarios oficiales con el retraso conocido en la última actualización.</div>';
