@@ -130,6 +130,26 @@ export class Store {
       trains.push(...list);
       this.mark(id, { feedTimestamp: r.value.timestamp, count: list.length });
     });
+    // Larga distancia: Renfe publica el retraso de muchos trenes que no traen GPS. Se colocan con el horario desplazado
+    // por su retraso (posición estimada). Los viajes que aún no han salido no aparecen: no están en circulación.
+    const ldSched = this.scheduledTrips.get('renfe-gtfs-ld'), ldCal = this.calendars.get('renfe-gtfs-ld');
+    if (ldSched && ldCal) {
+      const at = nowSec(), have = new Set(trains.map((t) => t.tripId));
+      for (const d of this.delays.values()) {
+        if (d.network !== 'ld' || have.has(d.tripId) || d.measured === false || at - d.updatedAt > 600) continue;
+        const trip = this.trips.get(d.tripId), list = ldSched.get(d.tripId);
+        if (!trip || !list) continue;
+        const spot = positionNow(at, list, trip, ldCal, this.stops, d.cancelled ? 0 : d.delaySec);
+        if (!spot) continue;
+        trains.push({
+          tripId: d.tripId, routeId: trip.routeId,
+          // El id de viaje de larga distancia es "<nº de tren><fecha AAAA-MM-DD>": el número es la etiqueta del tren.
+          label: d.tripId.replace(/\d{4}-\d{2}-\d{2}$/, ''),
+          lat: spot.lat, lon: spot.lon, positionBasis: 'interpolated', stopId: spot.stopId,
+          status: spot.atStop ? 'STOPPED_AT' : 'IN_TRANSIT_TO', delaySec: d.delaySec, updatedAt: d.updatedAt, network: 'ld',
+        });
+      }
+    }
     this.trains = trains;
 
     try {
@@ -307,7 +327,7 @@ export class Store {
   private estimatedTrains(at: number) {
     const out = [];
     for (const [feedId, sched] of this.scheduledTrips) {
-      if (RT_OPERATORS.some((o) => o.feedId === feedId)) continue; // estos tienen tiempo real
+      if (!STATIC_FEEDS[feedId]?.railOnly) continue; // solo las redes sin ningún tiempo real (Mallorca)
       const cal = this.calendars.get(feedId);
       if (!cal) continue;
       for (const p of scheduledPositions(at, sched, this.trips, cal, this.stops)) {

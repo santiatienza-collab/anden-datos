@@ -39,6 +39,8 @@ export const STATIC_FEEDS: Record<string, StaticFeed> = {
   'renfe-gtfs-ld': {
     network: 'ld',
     url: 'https://ssl.renfe.com/gtransit/Fichero_AV_LD/google_transit.zip',
+    // Su recorrido horario permite colocar los trenes que tienen retraso pero no GPS.
+    keepSchedule: true,
   },
   'ctm-mallorca': {
     network: 'mallorca',

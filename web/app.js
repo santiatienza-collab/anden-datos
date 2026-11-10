@@ -256,14 +256,22 @@ function renderStations() {
     const res = pool.filter((s) => norm(s.name).includes(q)).sort((a, b) => Number(norm(b.name).startsWith(q)) - Number(norm(a.name).startsWith(q))).slice(0, 80);
     body = '<div class="note">' + res.length + ' resultado' + (res.length === 1 ? '' : 's') + '</div>' + res.map((s) => '<div class="st" data-act="station" data-v="' + esc(s.id) + '"><span>' + esc(s.name) + ' <span class="note">' + esc(s.province ?? '') + '</span></span><span>' + mark(s) + '</span></div>').join('');
   } else {
-    const by = {};
-    for (const s of pool) (by[s.province ?? 'Fuera de España'] ??= []).push(s);
-    const open = !!S.region || S.onlyAlerts;
-    body = Object.keys(by).sort((a, b) => (a === 'Fuera de España') - (b === 'Fuera de España') || a.localeCompare(b, 'es')).map((p) => {
-      const l = by[p].sort((a, b) => Number(b.alerts > 0) - Number(a.alerts > 0) || a.name.localeCompare(b.name, 'es'));
-      const n = l.filter((s) => s.alerts > 0).length;
-      return '<details' + (open ? ' open' : '') + '><summary><span>' + esc(p) + '</span><em>' + (n ? '⚠️ ' + n + ' · ' : '') + l.length + '</em></summary>' +
-        l.map((s) => '<div class="st" data-act="station" data-v="' + esc(s.id) + '"><span>' + esc(s.name) + '</span><span>' + mark(s) + '</span></div>').join('') + '</details>';
+    // Árbol: comunidad -> provincia -> estación
+    const tree = {};
+    for (const s of pool) ((tree[s.region ?? '_fuera'] ??= {})[s.province ?? 'Fuera de España'] ??= []).push(s);
+    const rName = (id) => (id === '_fuera' ? 'Fuera de España' : regionName(id));
+    const cnt = (list) => { const n = list.filter((s) => s.alerts > 0).length; return (n ? '⚠️ ' + n + ' · ' : '') + list.length; };
+    const outLast = (a, b) => (a === '_fuera' || a === 'Fuera de España') - (b === '_fuera' || b === 'Fuera de España');
+    body = Object.keys(tree).sort((a, b) => outLast(a, b) || rName(a).localeCompare(rName(b), 'es')).map((rid) => {
+      const provs = tree[rid], pkeys = Object.keys(provs).sort((a, b) => outLast(a, b) || a.localeCompare(b, 'es'));
+      const all = pkeys.flatMap((p) => provs[p]);
+      const inner = pkeys.map((p) => {
+        const l = provs[p].sort((a, b) => Number(b.alerts > 0) - Number(a.alerts > 0) || a.name.localeCompare(b.name, 'es'));
+        const open = S.onlyAlerts || pkeys.length === 1;
+        return '<details class="prov"' + (open ? ' open' : '') + '><summary><span>' + esc(p) + '</span><em>' + cnt(l) + '</em></summary>' +
+          l.map((s) => '<div class="st" data-act="station" data-v="' + esc(s.id) + '"><span>🚉 ' + esc(s.name) + '</span><span>' + mark(s) + '</span></div>').join('') + '</details>';
+      }).join('');
+      return '<details class="comm"' + (S.region || S.onlyAlerts ? ' open' : '') + '><summary><span>📍 ' + esc(rName(rid)) + '</span><em>' + cnt(all) + '</em></summary>' + inner + '</details>';
     }).join('');
   }
   el.innerHTML = '<div class="row"><input type="search" id="q" placeholder="Buscar estación…" value="' + esc(S.q) + '" style="flex:1;min-width:180px"><label><input type="checkbox" id="only" ' + (S.onlyAlerts ? 'checked' : '') + '> Con avisos</label></div>' +

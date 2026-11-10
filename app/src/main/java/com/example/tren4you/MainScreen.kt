@@ -43,6 +43,9 @@ import com.example.tren4you.ui.theme.Gray950
 import com.example.tren4you.ui.theme.LevelRed
 import kotlinx.coroutines.delay
 
+/** Cada cuántos milisegundos la app pide trenes, estaciones y avisos. */
+const val REFRESH_MS = 30_000L
+
 enum class Section(val label: String, val icon: ImageVector) {
     Map("Mapa", Icons.Filled.Map),
     Delays("Retrasos", Icons.Filled.Schedule),
@@ -82,25 +85,25 @@ fun MainScreen() {
             if (regions.isEmpty()) delay(5_000)
         }
     }
-    // Los datos se publican cada ~5 min en origen; pedirlos con más frecuencia no aporta nada.
+    // La app pide los datos cada 30 s. Si el fichero no ha cambiado el servidor contesta 304 y no se descarga nada.
     LaunchedEffect(Unit) {
         while (true) {
             runCatching { TrainsApi.trains() }
                 .onSuccess { trains = it.trains; dataTimeSec = it.generatedAt; trainsError = null }
                 .onFailure { trainsError = it.message ?: "sin conexión" }
-            delay(60_000)
+            delay(REFRESH_MS)
         }
     }
     LaunchedEffect(Unit) {
         while (true) {
             runCatching { TrainsApi.stations() }.onSuccess { stations = it }
-            delay(120_000)
+            delay(REFRESH_MS)
         }
     }
     LaunchedEffect(Unit) {
         while (true) {
             runCatching { TrainsApi.alerts() }.onSuccess { alerts = it; alertsLoaded = true }
-            delay(120_000)
+            delay(REFRESH_MS)
         }
     }
     LaunchedEffect(Unit) { while (true) { now = System.currentTimeMillis(); delay(1_000) } }

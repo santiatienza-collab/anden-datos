@@ -115,7 +115,6 @@ private const val AL_LAYER = "stations-alerts"
 private const val RG_SRC = "regions"
 private const val RG_FILL = "regions-fill"
 private const val RG_LINE = "regions-line"
-private const val REFRESH_MS = 60_000L // los datos se publican cada ~5 min; más frecuente no aporta nada
 
 // Mapa base: datos de OpenStreetMap servidos por OpenFreeMap (vectorial, gratuito, sin clave).
 // Atribución obligatoria: OpenFreeMap, OpenMapTiles y colaboradores de OSM (la muestra el botón (i)).
@@ -310,7 +309,7 @@ fun MapScreen(
 
     LaunchedEffect(Unit) { while (true) { now = System.currentTimeMillis(); delay(1_000) } }
 
-    // Tablero de la estación abierta: al abrirla y cada minuto.
+    // Tablero de la estación abierta: al abrirla y cada 30 s.
     LaunchedEffect(station?.id) {
         val st = station ?: return@LaunchedEffect
         board = null
@@ -319,7 +318,7 @@ fun MapScreen(
             runCatching { TrainsApi.board(st) }
                 .onSuccess { board = it; boardError = null }
                 .onFailure { boardError = it.message ?: "sin conexión" }
-            delay(60_000)
+            delay(REFRESH_MS)
         }
     }
 

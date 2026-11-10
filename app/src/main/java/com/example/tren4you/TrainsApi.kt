@@ -18,16 +18,25 @@ data class TrainsData(val trains: List<Train>, val generatedAt: Long)
 object TrainsApi {
     private val base = BuildConfig.BACKEND_URL.trim().trimEnd('/')
 
+    /** Última respuesta de cada fichero con su ETag: si no ha cambiado, el servidor contesta 304 sin enviar nada. */
+    private class Cached(val etag: String, val body: String)
+    private val cache = java.util.concurrent.ConcurrentHashMap<String, Cached>()
+
     private suspend fun get(path: String): JSONObject = withContext(Dispatchers.IO) {
-        // GitHub Pages guarda los ficheros en caché hasta 10 min; un parámetro distinto cada minuto fuerza a pedir el más reciente.
-        val conn = URL("$base$path?v=${System.currentTimeMillis() / 60_000}").openConnection() as HttpURLConnection
+        // GitHub Pages guarda los ficheros en caché hasta 10 min; un parámetro distinto cada 30 s fuerza a pedir el más reciente.
+        val conn = URL("$base$path?v=${System.currentTimeMillis() / 30_000}").openConnection() as HttpURLConnection
         try {
             conn.connectTimeout = 10_000
             conn.readTimeout = 20_000
             conn.setRequestProperty("Accept", "application/json")
+            val known = cache[path]
+            if (known != null) conn.setRequestProperty("If-None-Match", known.etag)
             val code = conn.responseCode
+            if (code == 304 && known != null) return@withContext JSONObject(known.body)
             if (code != 200) throw HttpStatusException(code)
-            JSONObject(conn.inputStream.bufferedReader().readText())
+            val body = conn.inputStream.bufferedReader().readText()
+            conn.getHeaderField("ETag")?.let { cache[path] = Cached(it, body) }
+            JSONObject(body)
         } finally {
             conn.disconnect()
         }
