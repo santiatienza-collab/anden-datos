@@ -148,7 +148,7 @@ fun MainScreen() {
                                 }
                             } else Icon(s.icon, s.label)
                         },
-                        label = { Text(s.label, fontSize = 10.sp, maxLines = 1) },
+                        label = { Text(s.label, fontSize = 9.sp, maxLines = 1, softWrap = false) },
                         colors = NavigationBarItemDefaults.colors(
                             selectedIconColor = Gray950, selectedTextColor = AndenYellow, indicatorColor = AndenYellow,
                             unselectedIconColor = Gray400, unselectedTextColor = Gray400,
