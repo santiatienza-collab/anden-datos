@@ -68,7 +68,7 @@ function stopsGeo(list) {
 
 const STYLE_LIGHT = 'https://tiles.openfreemap.org/styles/positron';
 const STYLE_DARK = 'https://tiles.openfreemap.org/styles/dark';
-let dark = localStorage.getItem('anden-dark') === '1';
+const dark = false; // la web usa siempre el mapa claro
 let regionsGeoData = null;
 const palette = () => (dark
   ? { stroke: '#f5f5f7', stFill: '#2a2a2e', stStroke: '#9a9aa2', alert: '#ffd60a', line: '#9a9aa2', accent: '#ffd60a', estStroke: '#9a9aa2' }
@@ -125,13 +125,6 @@ async function addLayers() {
   if (!regionsGeoData) {
     try { regionsGeoData = await j('api/v1/regions/geo.json'); map.getSource('regions').setData(regionsGeoData); } catch (_) { /* se reintenta al cambiar de modo */ }
   }
-}
-
-function toggleDark() {
-  dark = !dark;
-  localStorage.setItem('anden-dark', dark ? '1' : '0');
-  $('#dark').textContent = dark ? '☀️' : '🌙';
-  if (map) { mapReady = false; map.setStyle(dark ? STYLE_DARK : STYLE_LIGHT); }
 }
 
 function pushMap() {
@@ -345,8 +338,6 @@ document.addEventListener('change', (e) => { if (e.target.id === 'only') { S.onl
 $('#region').addEventListener('change', (e) => setRegion(e.target.value));
 $('#tabs').addEventListener('click', (e) => { const b = e.target.closest('button'); if (b) setTab(b.dataset.tab); });
 $('#detail-close').addEventListener('click', () => ($('#detail').hidden = true));
-$('#dark').textContent = dark ? '☀️' : '🌙';
-$('#dark').addEventListener('click', toggleDark);
 
 (async function start() {
   initMap();

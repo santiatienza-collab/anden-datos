@@ -84,4 +84,3 @@ footer #age.stale { color: var(--amber); }
 @media (max-width: 560px) { .sub { display: none; } .grid.k4 { grid-template-columns: repeat(2, 1fr); } .rbar { grid-template-columns: 110px 1fr 30px; } }
 
 .hdr-r { display: flex; gap: 8px; align-items: center; }
-#dark { background: var(--g900); border: 1px solid var(--g600); border-radius: 10px; padding: 7px 10px; font-size: 16px; cursor: pointer; color: var(--white); }
