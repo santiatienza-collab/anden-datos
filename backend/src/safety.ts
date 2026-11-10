@@ -75,7 +75,7 @@ export const SAFETY = {
   /** Para avisar solo por "detenido" hace falta más tiempo. */
   stoppedAloneSec: 240,
   /** Cerca de su próxima parada se considera espera normal en cabecera/andén. */
-  nearStopKm: 0.5,
+  nearStopKm: 0.6,
   /** Un tren "en marcha" se ha desplazado al menos esto. */
   movingMinKm: 0.3,
   approachRangeKm: 20,
@@ -177,9 +177,15 @@ function track(input: SafetyInput): Tracked[] {
 const hhmmss = (s: number) => `${Math.round(s / 60)} min`;
 const name = (t: SafetyTrain) => `${t.line ? t.line + ' ' : ''}${t.label}${t.company ? ' (' + t.company + ')' : ''}`;
 
+/** En un andén, cabecera o apartadero: a menos de nearStopKm de su próxima parada o de cualquier estación conocida. */
 function nearNextStop(t: SafetyTrain, stops: SafetyInput['stops']): boolean {
   const s = t.stopId ? stops.get(t.stopId) : undefined;
-  return !!s && distKm(t.lat!, t.lon!, s.lat, s.lon) < SAFETY.nearStopKm;
+  if (s && distKm(t.lat!, t.lon!, s.lat, s.lon) < SAFETY.nearStopKm) return true;
+  for (const o of stops.values()) {
+    if (Math.abs(o.lat - t.lat!) > 0.01 || Math.abs(o.lon - t.lon!) > 0.015) continue; // filtro rápido (~1 km)
+    if (distKm(t.lat!, t.lon!, o.lat, o.lon) < SAFETY.nearStopKm) return true;
+  }
+  return false;
 }
 
 export function trainSignals(input: SafetyInput): SafetySignal[] {
