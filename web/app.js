@@ -66,44 +66,76 @@ function stopsGeo(list) {
     properties: { id: s.id, name: s.name, flag: s.accessibility ? 'access' : s.alerts > 0 ? 'alert' : 'ok' } })) };
 }
 
+const STYLE_LIGHT = 'https://tiles.openfreemap.org/styles/positron';
+const STYLE_DARK = 'https://tiles.openfreemap.org/styles/dark';
+let dark = localStorage.getItem('anden-dark') === '1';
+let regionsGeoData = null;
+const palette = () => (dark
+  ? { stroke: '#f5f5f7', stFill: '#2a2a2e', stStroke: '#9a9aa2', alert: '#ffd60a', line: '#9a9aa2', accent: '#ffd60a', estStroke: '#9a9aa2' }
+  : { stroke: '#1c1c1f', stFill: '#ffffff', stStroke: '#5a5a60', alert: '#d99a00', line: '#5a5a60', accent: '#d99a00', estStroke: '#5a5a60' });
+
+/** El mapa es opcional: si el navegador no tiene WebGL (p. ej. aceleración por hardware desactivada) o la librería no carga, el resto de la web sigue funcionando. */
+function mapFail(msg) {
+  map = null; mapReady = false;
+  $('#map').innerHTML = '<div class="note" style="padding:24px;max-width:520px">🗺️ No se puede mostrar el mapa en este navegador. ' + esc(msg) +
+    '<br><br>Puedes seguir usando Retrasos, Avisos y Estaciones. Si usas Chrome, comprueba que esté activada la opción «Usar aceleración gráfica cuando esté disponible» (chrome://settings/system) y recarga con Ctrl+F5.</div>';
+}
+
 function initMap() {
-  map = new maplibregl.Map({ container: 'map', style: 'https://tiles.openfreemap.org/styles/positron', bounds: SPAIN, fitBoundsOptions: { padding: 20 } });
+  try {
+    if (typeof maplibregl === 'undefined') throw new Error('No se cargó la librería del mapa (¿bloqueada por una extensión o por la red?).');
+    map = new maplibregl.Map({ container: 'map', style: dark ? STYLE_DARK : STYLE_LIGHT, bounds: SPAIN, fitBoundsOptions: { padding: 20 } });
+  } catch (err) {
+    return mapFail(err && err.message ? err.message : 'WebGL no disponible.');
+  }
   map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'top-right');
-  map.on('load', async () => {
-    const empty = { type: 'FeatureCollection', features: [] };
-    map.addSource('regions', { type: 'geojson', data: empty });
-    map.addLayer({ id: 'regions-fill', type: 'fill', source: 'regions', paint: { 'fill-color': '#d99a00', 'fill-opacity': ['case', ['==', ['get', 'id'], ['literal', S.region || '-']], 0.1, 0.01] } });
-    map.addLayer({ id: 'regions-line', type: 'line', source: 'regions', paint: { 'line-color': '#5a5a60', 'line-width': 1 } });
-    map.addSource('stations', { type: 'geojson', data: empty });
-    map.addLayer({ id: 'stations', type: 'circle', source: 'stations', minzoom: 6,
-      paint: { 'circle-color': '#fff', 'circle-radius': ['interpolate', ['linear'], ['zoom'], 6, 2.5, 10, 5, 13, 8], 'circle-stroke-color': '#5a5a60', 'circle-stroke-width': 1.2 } });
-    map.addLayer({ id: 'stations-alerts', type: 'circle', source: 'stations', filter: ['!=', ['get', 'flag'], 'ok'],
-      paint: { 'circle-color': '#d99a00', 'circle-radius': ['interpolate', ['linear'], ['zoom'], 4, 4, 8, 6, 13, 9], 'circle-stroke-color': '#1c1c1f', 'circle-stroke-width': 1.6 } });
-    map.addSource('trains', { type: 'geojson', data: empty });
-    const est = ['==', ['get', 'est'], true];
-    map.addLayer({ id: 'trains', type: 'circle', source: 'trains', paint: {
-      'circle-color': ['case', est, '#ffffff', ['match', ['get', 'level'], 'green', COLORS.green, 'amber', COLORS.amber, 'red', COLORS.red, COLORS.gray]],
-      'circle-radius': ['interpolate', ['linear'], ['zoom'], 4, 3.5, 8, 6, 12, 9],
-      'circle-stroke-color': ['case', est, '#5a5a60', '#1c1c1f'], 'circle-stroke-width': ['case', est, 2.2, 1.4] } });
-    map.on('click', 'trains', (e) => { const t = S.trains.find((x) => x.tripId === e.features[0].properties.id); if (t) trainPopup(t); });
-    const openSt = (e) => { const s = S.stops.find((x) => x.id === e.features[0].properties.id); if (s) openStation(s); };
-    map.on('click', 'stations-alerts', openSt); map.on('click', 'stations', openSt);
-    map.on('click', 'regions-fill', (e) => {
-      if (map.queryRenderedFeatures(e.point, { layers: ['trains', 'stations', 'stations-alerts'] }).length) return;
-      setRegion(e.features[0].properties.id);
-    });
-    for (const l of ['trains', 'stations', 'stations-alerts']) {
-      map.on('mouseenter', l, () => (map.getCanvas().style.cursor = 'pointer'));
-      map.on('mouseleave', l, () => (map.getCanvas().style.cursor = ''));
-    }
-    mapReady = true;
-    try { map.getSource('regions').setData(await j('api/v1/regions/geo.json')); } catch (_) { /* se reintenta al refrescar */ }
-    pushMap();
+  // Las capas se vuelven a añadir cada vez que se carga un estilo (al inicio y al cambiar de modo claro/oscuro)
+  map.on('style.load', addLayers);
+  map.on('click', 'trains', (e) => { const t = S.trains.find((x) => x.tripId === e.features[0].properties.id); if (t) trainPopup(t); });
+  const openSt = (e) => { const s = S.stops.find((x) => x.id === e.features[0].properties.id); if (s) openStation(s); };
+  map.on('click', 'stations-alerts', openSt); map.on('click', 'stations', openSt);
+  map.on('click', 'regions-fill', (e) => {
+    if (map.queryRenderedFeatures(e.point, { layers: ['trains', 'stations', 'stations-alerts'] }).length) return;
+    setRegion(e.features[0].properties.id);
   });
+  for (const l of ['trains', 'stations', 'stations-alerts']) {
+    map.on('mouseenter', l, () => (map.getCanvas().style.cursor = 'pointer'));
+    map.on('mouseleave', l, () => (map.getCanvas().style.cursor = ''));
+  }
+}
+
+async function addLayers() {
+  const c = palette(), empty = { type: 'FeatureCollection', features: [] };
+  map.addSource('regions', { type: 'geojson', data: regionsGeoData || empty });
+  map.addLayer({ id: 'regions-fill', type: 'fill', source: 'regions', paint: { 'fill-color': c.accent, 'fill-opacity': ['case', ['==', ['get', 'id'], ['literal', S.region || '-']], 0.1, 0.01] } });
+  map.addLayer({ id: 'regions-line', type: 'line', source: 'regions', paint: { 'line-color': c.line, 'line-width': 1 } });
+  map.addSource('stations', { type: 'geojson', data: empty });
+  map.addLayer({ id: 'stations', type: 'circle', source: 'stations', minzoom: 6,
+    paint: { 'circle-color': c.stFill, 'circle-radius': ['interpolate', ['linear'], ['zoom'], 6, 2.5, 10, 5, 13, 8], 'circle-stroke-color': c.stStroke, 'circle-stroke-width': 1.2 } });
+  map.addLayer({ id: 'stations-alerts', type: 'circle', source: 'stations', filter: ['!=', ['get', 'flag'], 'ok'],
+    paint: { 'circle-color': c.alert, 'circle-radius': ['interpolate', ['linear'], ['zoom'], 4, 4, 8, 6, 13, 9], 'circle-stroke-color': '#1c1c1f', 'circle-stroke-width': 1.6 } });
+  map.addSource('trains', { type: 'geojson', data: empty });
+  const est = ['==', ['get', 'est'], true];
+  map.addLayer({ id: 'trains', type: 'circle', source: 'trains', paint: {
+    'circle-color': ['case', est, '#ffffff', ['match', ['get', 'level'], 'green', COLORS.green, 'amber', COLORS.amber, 'red', COLORS.red, COLORS.gray]],
+    'circle-radius': ['interpolate', ['linear'], ['zoom'], 4, 3.5, 8, 6, 12, 9],
+    'circle-stroke-color': ['case', est, c.estStroke, c.stroke], 'circle-stroke-width': ['case', est, 2.2, 1.4] } });
+  mapReady = true;
+  pushMap();
+  if (!regionsGeoData) {
+    try { regionsGeoData = await j('api/v1/regions/geo.json'); map.getSource('regions').setData(regionsGeoData); } catch (_) { /* se reintenta al cambiar de modo */ }
+  }
+}
+
+function toggleDark() {
+  dark = !dark;
+  localStorage.setItem('anden-dark', dark ? '1' : '0');
+  $('#dark').textContent = dark ? '☀️' : '🌙';
+  if (map) { mapReady = false; map.setStyle(dark ? STYLE_DARK : STYLE_LIGHT); }
 }
 
 function pushMap() {
-  if (!mapReady) return;
+  if (!map || !mapReady) return;
   let list = inRegion(S.trains);
   if (S.level) list = list.filter((t) => t.level === S.level && !estimated(t));
   map.getSource('trains').setData(trainsGeo(list));
@@ -287,6 +319,7 @@ function setRegion(id) { S.region = id || ''; renderAll(); fitRegion(); }
 function goTrain(id) {
   const t = S.trains.find((x) => x.tripId === id); if (!t) return;
   setTab('map');
+  if (!map) return;
   setTimeout(() => { map.flyTo({ center: [t.lon, t.lat], zoom: 9.5 }); trainPopup(t); }, 50);
 }
 
@@ -312,6 +345,8 @@ document.addEventListener('change', (e) => { if (e.target.id === 'only') { S.onl
 $('#region').addEventListener('change', (e) => setRegion(e.target.value));
 $('#tabs').addEventListener('click', (e) => { const b = e.target.closest('button'); if (b) setTab(b.dataset.tab); });
 $('#detail-close').addEventListener('click', () => ($('#detail').hidden = true));
+$('#dark').textContent = dark ? '☀️' : '🌙';
+$('#dark').addEventListener('click', toggleDark);
 
 (async function start() {
   initMap();

@@ -1,5 +1,6 @@
 package com.example.tren4you
 
+import android.content.Context
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -31,6 +32,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.sp
 import com.example.tren4you.ui.theme.AndenWhite
 import com.example.tren4you.ui.theme.AndenYellow
@@ -56,6 +58,10 @@ enum class Section(val label: String, val icon: ImageVector) {
  */
 @Composable
 fun MainScreen() {
+    val context = LocalContext.current
+    val prefs = remember { context.getSharedPreferences("anden", Context.MODE_PRIVATE) }
+    // Modo oscuro del mapa: se elige en Ajustes y se recuerda
+    var dark by remember { mutableStateOf(prefs.getBoolean("dark_map", false)) }
     var section by rememberSaveable { mutableStateOf(Section.Map) }
     var regions by remember { mutableStateOf<List<Region>>(emptyList()) }
     var region by remember { mutableStateOf<Region?>(null) } // null = toda España
@@ -138,6 +144,7 @@ fun MainScreen() {
                 stations = stations, trains = trains, dataTimeSec = dataTimeSec, error = trainsError,
                 pendingStation = pendingStation, pendingTrain = pendingTrain,
                 onPendingHandled = { pendingStation = null; pendingTrain = null },
+                dark = dark,
             )
             if (section != Section.Map) {
                 // Capa opaca que además impide que los toques lleguen al mapa de debajo.
@@ -155,7 +162,7 @@ fun MainScreen() {
                             stations, regions, region, onRegion = { region = it },
                             onOpen = { pendingStation = it; section = Section.Map },
                         )
-                        Section.Settings -> SettingsScreen()
+                        Section.Settings -> SettingsScreen(dark) { dark = it; prefs.edit().putBoolean("dark_map", it).apply() }
                         Section.Map -> {}
                     }
                 }

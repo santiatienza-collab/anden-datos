@@ -121,6 +121,7 @@ private const val REFRESH_MS = 60_000L // los datos se publican cada ~5 min; má
 // Atribución obligatoria: OpenFreeMap, OpenMapTiles y colaboradores de OSM (la muestra el botón (i)).
 // Para producción conviene autoalojar las teselas.
 private const val STYLE_LIGHT = "https://tiles.openfreemap.org/styles/positron"
+private const val STYLE_DARK = "https://tiles.openfreemap.org/styles/dark"
 
 // Encuadre inicial: España peninsular y Baleares (Canarias, Ceuta y Melilla se ven al elegirlas).
 private val SPAIN = Region("espana", "España", -9.6, 35.9, 4.6, 43.9)
@@ -173,20 +174,20 @@ private fun levelExpr(): Expression = Expression.match(
 )
 
 /** Colores de las capas propias según el mapa base (claro u oscuro). */
-private class Palette {
-    val trainStroke = Gray900
-    val stationFill = Color.White
-    val stationStroke = Gray600
-    val stationAlert = Color(0xFFD99A00)
-    val label = Gray900
-    val labelHalo = Color.White
-    val regionLine = Gray600
-    val regionAccent = Color(0xFFD99A00)
+private class Palette(dark: Boolean) {
+    val trainStroke = if (dark) AndenWhite else Gray900
+    val stationFill = if (dark) Gray800 else Color.White
+    val stationStroke = if (dark) Gray400 else Gray600
+    val stationAlert = if (dark) AndenYellow else Color(0xFFD99A00)
+    val label = if (dark) AndenWhite else Gray900
+    val labelHalo = if (dark) Gray950 else Color.White
+    val regionLine = if (dark) Gray400 else Gray600
+    val regionAccent = if (dark) AndenYellow else Color(0xFFD99A00)
 }
 
 /** Resalta la comunidad elegida: contorno grueso y relleno suave; el resto, contorno fino. */
-private fun highlightRegion(style: Style, selectedId: String?) {
-    val c = Palette()
+private fun highlightRegion(style: Style, selectedId: String?, dark: Boolean) {
+    val c = Palette(dark)
     val sel = selectedId ?: "-"
     style.getLayerAs<FillLayer>(RG_FILL)?.setProperties(
         fillOpacity(Expression.match(Expression.get("id"), Expression.literal(0.01f), Expression.stop(sel, Expression.literal(0.1f)))),
@@ -198,8 +199,8 @@ private fun highlightRegion(style: Style, selectedId: String?) {
 }
 
 /** Añade las capas de estaciones y trenes sobre el estilo base ya cargado. */
-private fun addAndenLayers(style: Style) {
-    val c = Palette()
+private fun addAndenLayers(style: Style, dark: Boolean) {
+    val c = Palette(dark)
     // Comunidades autónomas: relleno casi invisible (para poder tocarlas) y contorno fino.
     style.addSource(GeoJsonSource(RG_SRC, "{\"type\":\"FeatureCollection\",\"features\":[]}"))
     style.addLayer(FillLayer(RG_FILL, RG_SRC).withProperties(fillColor(Expression.color(c.regionAccent.toArgb())), fillOpacity(0.01f)))
@@ -291,6 +292,7 @@ fun MapScreen(
     pendingStation: Station?,
     pendingTrain: Train?,
     onPendingHandled: () -> Unit,
+    dark: Boolean,
 ) {
     val context = LocalContext.current
     val density = LocalDensity.current
@@ -338,8 +340,8 @@ fun MapScreen(
         val g = regionsGeo ?: return@LaunchedEffect
         if (styleReady) map?.style?.getSourceAs<GeoJsonSource>(RG_SRC)?.setGeoJson(g)
     }
-    LaunchedEffect(region, regionsGeo, styleReady) {
-        if (styleReady) map?.style?.let { highlightRegion(it, region?.id) }
+    LaunchedEffect(region, regionsGeo, styleReady, dark) {
+        if (styleReady) map?.style?.let { highlightRegion(it, region?.id, dark) }
     }
 
     // Empuja datos al mapa (también tras cambiar de estilo, cuando styleReady vuelve a true).
@@ -393,9 +395,9 @@ fun MapScreen(
         else if (tr != null) { openTrain(tr); onPendingHandled() }
     }
 
-    Box(Modifier.fillMaxSize().background(Color(0xFFE8E8EA))) {
+    Box(Modifier.fillMaxSize().background(if (dark) Gray900 else Color(0xFFE8E8EA))) {
         MapContainer(
-            context,
+            context, dark,
             onMap = { m, ready -> map = m; styleReady = ready },
             onTap = { trainHit, stationHit, regionHit ->
                 when {
@@ -477,11 +479,13 @@ private fun SearchOverlay(stations: List<Station>, onClose: () -> Unit, onPick: 
 @Composable
 private fun MapContainer(
     context: Context,
+    dark: Boolean,
     onMap: (MapLibreMap, Boolean) -> Unit,
     onTap: (trainId: String?, stationId: String?, regionId: String?) -> Unit,
 ) {
     val lifecycle = LocalLifecycleOwner.current.lifecycle
     var mapRef by remember { mutableStateOf<MapLibreMap?>(null) }
+    var appliedDark by remember { mutableStateOf<Boolean?>(null) }
 
     val mapView = remember {
         MapLibre.getInstance(context)
@@ -505,12 +509,14 @@ private fun MapContainer(
         }
     }
 
-    // Aplica el estilo base (siempre claro) y añade las capas propias.
-    LaunchedEffect(mapRef) {
+    // Aplica el estilo base (claro u oscuro) y añade las capas propias; se repite al cambiar de modo.
+    LaunchedEffect(mapRef, dark) {
         val m = mapRef ?: return@LaunchedEffect
+        if (appliedDark == dark) return@LaunchedEffect
+        appliedDark = dark
         onMap(m, false)
-        m.setStyle(Style.Builder().fromUri(STYLE_LIGHT)) { style ->
-            addAndenLayers(style)
+        m.setStyle(Style.Builder().fromUri(if (dark) STYLE_DARK else STYLE_LIGHT)) { style ->
+            addAndenLayers(style, dark)
             onMap(m, true)
         }
     }

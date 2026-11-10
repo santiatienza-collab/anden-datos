@@ -18,6 +18,8 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -61,11 +63,12 @@ private fun sourceLabel(id: String) = when (id) {
     "metrobilbao-rt-trips" -> "Retrasos · Metro Bilbao"
     "metrobilbao-rt-vehicles" -> "Posiciones · Metro Bilbao"
     "fgc-rt-trips" -> "Retrasos · FGC"
+    "fgc-rt-positions" -> "Posiciones · FGC (estimadas)"
     else -> id
 }
 
 @Composable
-fun SettingsScreen() {
+fun SettingsScreen(dark: Boolean, onDark: (Boolean) -> Unit) {
     var sources by remember { mutableStateOf<SourcesInfo?>(null) }
     var failMsg by remember { mutableStateOf<String?>(null) }
     LaunchedEffect(Unit) {
@@ -78,6 +81,22 @@ fun SettingsScreen() {
     Column(Modifier.fillMaxSize().statusBarsPadding().verticalScroll(rememberScrollState()).padding(16.dp)) {
         Text("Ajustes", color = AndenYellow, fontSize = 22.sp, fontWeight = FontWeight.Bold)
         Spacer(Modifier.height(16.dp))
+
+        Section("Aspecto") {
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text("Modo oscuro", color = AndenWhite, fontSize = 15.sp)
+                    Text("Mapa con fondo oscuro", color = Gray400, fontSize = 12.sp)
+                }
+                Switch(
+                    checked = dark, onCheckedChange = onDark,
+                    colors = SwitchDefaults.colors(
+                        checkedThumbColor = Gray950, checkedTrackColor = AndenYellow,
+                        uncheckedThumbColor = Gray400, uncheckedTrackColor = Gray900,
+                    ),
+                )
+            }
+        }
 
         Section("Estado de los datos") {
             Text(
