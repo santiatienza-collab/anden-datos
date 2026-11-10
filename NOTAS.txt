@@ -1,0 +1,2 @@
+API TMB
+https://api.tmb.cat/v1/itransit/metro/estacions?estacions=122&app_id=38f08fa7&app_key=e1ec4a6e27e995ca0b7463e2590ce17e

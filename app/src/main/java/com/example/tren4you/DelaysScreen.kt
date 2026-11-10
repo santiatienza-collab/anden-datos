@@ -142,7 +142,7 @@ fun DelaysScreen(
                         }
                     }
                     Text(
-                        "Compañías con datos abiertos: Renfe, SFM (Mallorca), Euskotren, Metro Bilbao y FGC.",
+                        "Compañías con datos abiertos: Renfe, SFM (Mallorca), Euskotren, Metro Bilbao, FGC y TMB (próximos trenes).",
                         color = Gray600, fontSize = 10.sp, modifier = Modifier.padding(top = 2.dp),
                     )
                 }

@@ -4,6 +4,7 @@
 import { mkdir, rm, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { Store } from './store.ts';
+import { loadTmb } from './tmb.ts';
 import {
   alertsResponse, boardResponse, stopKey, healthResponse, regionsGeoResponse, regionsResponse,
   statusResponse, stopsResponse, trainsResponse,
@@ -34,6 +35,20 @@ if (failed.length === critical.length) {
   process.exit(1);
 }
 
+// Metro de Barcelona (opcional: necesita TMB_APP_ID / TMB_APP_KEY). Un fallo aquí no afecta al resto.
+let tmbBoards = new Map<string, any[]>();
+try {
+  const tmb = await loadTmb(now);
+  if (tmb) {
+    for (const s of tmb.stops) store.stops.set(s.id, s);
+    tmbBoards = tmb.boards;
+    store.health['tmb-itransit'] = { count: tmb.stops.length, lastOkAt: now };
+  }
+} catch (e) {
+  store.health['tmb-itransit'] = { lastError: (e as Error).message, lastOkAt: store.health['tmb-itransit']?.lastOkAt };
+  console.error('[tmb]', (e as Error).message);
+}
+
 await rm(out, { recursive: true, force: true });
 let bytes = 0;
 bytes += await write('api/v1/trains.json', trainsResponse(store, now));
@@ -49,6 +64,18 @@ for (const id of store.stops.keys()) {
   const b = boardResponse(store, id, now);
   if (!b || (b.departures.length === 0 && b.arrivals.length === 0 && b.alerts.length === 0)) continue;
   bytes += await write(`api/v1/stations/${stopKey(id)}/board.json`, b);
+  boards++;
+}
+
+const allStops = new Map(stopsResponse(store).stops.map((x) => [x.id, x]));
+for (const [sid, rows] of tmbBoards) {
+  const info = allStops.get(sid);
+  if (!info) continue;
+  bytes += await write(`api/v1/stations/${stopKey(sid)}/board.json`, {
+    generatedAt: now, station: info, scheduleReady: true,
+    accessibility: { stationInaccessible: false, elevatorsOut: 0, escalatorsOut: 0, otherOut: 0 },
+    alerts: [], departures: rows.slice(0, 30), arrivals: rows.slice(0, 30),
+  });
   boards++;
 }
 

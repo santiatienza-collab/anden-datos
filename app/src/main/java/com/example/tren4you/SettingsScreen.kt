@@ -57,6 +57,7 @@ private fun sourceLabel(id: String) = when (id) {
     "euskotren-gtfs" -> "Horarios · Euskotren"
     "metrobilbao-gtfs" -> "Horarios · Metro Bilbao"
     "fgc-gtfs" -> "Horarios · FGC"
+    "tmb-itransit" -> "Próximos trenes · Metro Barcelona (TMB)"
     "euskotren-rt-trips" -> "Retrasos · Euskotren"
     "euskotren-rt-positions" -> "Posiciones · Euskotren (estimadas)"
     "euskotren-rt-alerts" -> "Avisos · Euskotren"
@@ -137,7 +138,7 @@ fun SettingsScreen(dark: Boolean, onDark: (Boolean) -> Unit) {
             Text("Andén · versión ${BuildConfig.VERSION_NAME}", color = AndenWhite, fontSize = 14.sp)
             Spacer(Modifier.height(8.dp))
             Text(
-                "Datos de trenes: Renfe, Euskotren, Metro Bilbao, FGC y Consorci de Transports de Mallorca (datos abiertos, CC BY 4.0 o equivalente). En Mallorca no hay tiempo real: las posiciones se estiman según el horario. La gravedad de los avisos se estima a partir de su texto. " +
+                "Datos de trenes: Renfe, Euskotren, Metro Bilbao, FGC, TMB (próximos trenes del metro de Barcelona) y Consorci de Transports de Mallorca (datos abiertos, CC BY 4.0 o equivalente). En Mallorca no hay tiempo real: las posiciones se estiman según el horario. La gravedad de los avisos se estima a partir de su texto. " +
                     "Los datos son orientativos: para decisiones de viaje consulta los canales oficiales del operador.",
                 color = Gray400, fontSize = 12.sp, lineHeight = 17.sp,
             )

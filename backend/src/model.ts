@@ -6,7 +6,7 @@ export type SourceId =
   | 'renfe-rt-cercanias'
   | 'renfe-rt-ld';
 
-export type Network = 'cercanias' | 'ld' | 'mallorca' | 'euskotren' | 'metrobilbao' | 'fgc';
+export type Network = 'cercanias' | 'ld' | 'mallorca' | 'euskotren' | 'metrobilbao' | 'fgc' | 'tmb';
 
 export type Level = 'green' | 'amber' | 'red' | 'gray';
 

@@ -54,6 +54,9 @@ jobs:
         run: npm test --prefix backend
 
       - name: Generar la API estática
+        env:
+          TMB_APP_ID: ${{ secrets.TMB_APP_ID }}
+          TMB_APP_KEY: ${{ secrets.TMB_APP_KEY }}
         run: node backend/src/snapshot.ts site
 
       # La web (web/) se publica en la raíz, junto a los datos

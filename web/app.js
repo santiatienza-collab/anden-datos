@@ -218,7 +218,7 @@ function renderDelays() {
   if (!count) cards = '<div class="note">' + (total ? 'No hay trenes con esta gravedad.' : 'No hay retrasos con este filtro.') + '</div>';
   else if (count > 150) cards += '<div class="note">Mostrando los 150 con más retraso.</div>';
 
-  el.innerHTML = '<div class="grid s4">' + svc + '</div><div class="note" style="margin:-4px 0 12px">Compañías con datos abiertos: Renfe, SFM, Euskotren, Metro Bilbao y FGC.</div>' + estNote +
+  el.innerHTML = '<div class="grid s4">' + svc + '</div><div class="note" style="margin:-4px 0 12px">Compañías con datos abiertos: Renfe, SFM, Euskotren, Metro Bilbao, FGC y TMB (próximos trenes).</div>' + estNote +
     '<div class="grid k4"><div class="kpi"><b>' + measured.length + '</b><small>En circulación</small></div><div class="kpi"><b style="color:' + (total ? COLORS.amber : COLORS.green) + '">' + total +
     '</b><small>Con retraso (' + pct + ' %)</small></div><div class="kpi"><b>' + avg + ' min</b><small>Retraso medio</small></div><div class="kpi"><b style="color:' + (worst >= 15 ? COLORS.red : 'inherit') + '">' + worst + ' min</b><small>Máximo</small></div></div>' +
     '<div class="card"><h3>Estado de los trenes</h3>' + bar + '</div>' + byRegion +
