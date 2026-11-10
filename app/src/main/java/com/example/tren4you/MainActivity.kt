@@ -24,14 +24,17 @@ class MainActivity : ComponentActivity() {
     override fun onStop() {
         super.onStop()
         wasInBackground = true
+        appOpen.load() // deja uno listo para cuando el usuario vuelva
     }
 
     // Al volver a la app desde segundo plano: anuncio de carga, una sola vez por ejecución.
-    override fun onStart() {
-        super.onStart()
+    // Se hace en onResume, no en onStart: Google rechaza mostrarlo hasta que la app está realmente en primer plano.
+    override fun onResume() {
+        super.onResume()
         if (wasInBackground) {
             wasInBackground = false
-            appOpen.showIfReady()
+            // Un instante después: el SDK solo lo permite cuando la actividad ya está en primer plano.
+            window.decorView.postDelayed({ if (lifecycle.currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.RESUMED)) appOpen.showIfReady() }, 500)
         }
     }
 }

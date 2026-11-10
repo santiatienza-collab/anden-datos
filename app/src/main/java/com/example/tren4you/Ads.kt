@@ -45,30 +45,48 @@ object Ads {
 
 fun initAds(context: Context) = MobileAds.initialize(context) {}
 
-/** Anuncio de carga (apertura de la app): se muestra como máximo UNA vez por ejecución, al volver a la app desde segundo plano. */
+/**
+ * Anuncio de carga (apertura de la app): se muestra como máximo UNA vez por ejecución, al volver a la app desde segundo plano.
+ * Se precarga al abrir y se vuelve a pedir si falló, si caducó (Google los invalida a las 4 h) o al salir de la app.
+ */
 class AppOpenAdManager(private val activity: Activity) {
     private var ad: AppOpenAd? = null
+    private var loadedAt = 0L
     private var loading = false
     private var shown = false
+    private var retries = 0
+    private val handler = android.os.Handler(android.os.Looper.getMainLooper())
+
+    private fun fresh() = ad != null && System.currentTimeMillis() - loadedAt < 3 * 3_600_000L
 
     fun load() {
-        if (shown || loading || ad != null) return
+        if (shown || loading || fresh()) return
+        ad = null
         loading = true
         AppOpenAd.load(activity, Ads.APP_OPEN_TEST, AdRequest.Builder().build(), object : AppOpenAd.AppOpenAdLoadCallback() {
-            override fun onAdLoaded(ad: AppOpenAd) { this@AppOpenAdManager.ad = ad; loading = false; android.util.Log.i("AndenAds", "apertura cargado") }
-            override fun onAdFailedToLoad(error: LoadAdError) { loading = false; android.util.Log.w("AndenAds", "apertura: ${error.code} ${error.message}") }
+            override fun onAdLoaded(ad: AppOpenAd) {
+                this@AppOpenAdManager.ad = ad; loadedAt = System.currentTimeMillis(); loading = false; retries = 0
+                android.util.Log.i("AndenAds", "apertura cargado")
+            }
+            override fun onAdFailedToLoad(error: LoadAdError) {
+                loading = false
+                android.util.Log.w("AndenAds", "apertura: ${error.code} ${error.message}")
+                if (retries++ < 4) handler.postDelayed({ load() }, 15_000L * retries)
+            }
         })
     }
 
     /** Se llama al volver a la app. Si hay anuncio listo y todavía no se ha mostrado ninguno, lo muestra; nunca dos veces. */
     fun showIfReady() {
-        val a = ad ?: return
         if (shown) return
+        val a = ad.takeIf { fresh() }
+        if (a == null) { android.util.Log.i("AndenAds", "apertura: no hay anuncio listo al volver"); load(); return }
         shown = true
         ad = null
         a.fullScreenContentCallback = object : FullScreenContentCallback() {
-            override fun onAdFailedToShowFullScreenContent(error: AdError) {}
+            override fun onAdFailedToShowFullScreenContent(error: AdError) { shown = false; load(); android.util.Log.w("AndenAds", "apertura no se pudo mostrar: ${error.message}") }
         }
+        android.util.Log.i("AndenAds", "apertura: mostrando")
         a.show(activity)
     }
 }
