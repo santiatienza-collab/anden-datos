@@ -87,10 +87,12 @@ fun MainScreen() {
     }
     // La app pide los datos cada 30 s. Si el fichero no ha cambiado el servidor contesta 304 y no se descarga nada.
     LaunchedEffect(Unit) {
+        var failures = 0
         while (true) {
             runCatching { TrainsApi.trains() }
-                .onSuccess { trains = it.trains; dataTimeSec = it.generatedAt; trainsError = null }
-                .onFailure { trainsError = it.message ?: "sin conexión" }
+                .onSuccess { trains = it.trains; dataTimeSec = it.generatedAt; trainsError = null; failures = 0 }
+                // Se conservan los últimos datos; el aviso solo sale si fallan 3 peticiones seguidas.
+                .onFailure { failures++; if (failures >= 3) trainsError = it.message ?: "sin conexión" }
             delay(REFRESH_MS)
         }
     }

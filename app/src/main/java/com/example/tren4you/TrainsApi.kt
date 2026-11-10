@@ -22,7 +22,17 @@ object TrainsApi {
     private class Cached(val etag: String, val body: String)
     private val cache = java.util.concurrent.ConcurrentHashMap<String, Cached>()
 
-    private suspend fun get(path: String): JSONObject = withContext(Dispatchers.IO) {
+    /** Pide el fichero; ante un fallo puntual (p. ej. Pages redesplegándose) reintenta una vez antes de dar error. */
+    private suspend fun get(path: String): JSONObject {
+        try {
+            return fetch(path)
+        } catch (e: Exception) {
+            kotlinx.coroutines.delay(1_500)
+            return fetch(path)
+        }
+    }
+
+    private suspend fun fetch(path: String): JSONObject = withContext(Dispatchers.IO) {
         // GitHub Pages guarda los ficheros en caché hasta 10 min; un parámetro distinto cada 30 s fuerza a pedir el más reciente.
         val conn = URL("$base$path?v=${System.currentTimeMillis() / 30_000}").openConnection() as HttpURLConnection
         try {
