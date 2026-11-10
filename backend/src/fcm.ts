@@ -21,6 +21,18 @@ export function fcmConfigFromEnv(env: NodeJS.ProcessEnv = process.env): FcmConfi
   }
 }
 
+/** Por qué no hay configuración válida (sin revelar nada del contenido de los secretos). */
+export function fcmConfigProblem(env: NodeJS.ProcessEnv = process.env): string | null {
+  const raw = env.FIREBASE_SERVICE_ACCOUNT;
+  if (!raw) return 'el secreto FIREBASE_SERVICE_ACCOUNT no llega al flujo (vacío o con otro nombre)';
+  let j: any;
+  try { j = JSON.parse(raw); } catch { return 'FIREBASE_SERVICE_ACCOUNT no es un JSON válido (¿se pegó incompleto?)'; }
+  if (!j.client_email) return 'el JSON de FIREBASE_SERVICE_ACCOUNT no tiene client_email (¿es el google-services.json en lugar de la clave de cuenta de servicio?)';
+  if (!j.private_key) return 'el JSON de FIREBASE_SERVICE_ACCOUNT no tiene private_key (¿es el google-services.json en lugar de la clave de cuenta de servicio?)';
+  if (!(env.FIREBASE_PROJECT_ID || j.project_id)) return 'falta FIREBASE_PROJECT_ID';
+  return null;
+}
+
 const b64url = (b: Buffer | string) => Buffer.from(b).toString('base64url');
 
 /** JWT RS256 para pedir un token OAuth2 a Google con la cuenta de servicio. */

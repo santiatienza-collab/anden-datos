@@ -6,7 +6,7 @@ import { dirname, join } from 'node:path';
 import { Store } from './store.ts';
 import { loadTmb } from './tmb.ts';
 import { computeSafety, fetchPrevious, safetyStats } from './safety.ts';
-import { fcmConfigFromEnv, fetchPreviousCriticalIds, newCritical, sendSignals } from './fcm.ts';
+import { fcmConfigFromEnv, fcmConfigProblem, fetchPreviousCriticalIds, newCritical, sendSignals } from './fcm.ts';
 import {
   alertsResponse, boardResponse, stopKey, healthResponse, regionsGeoResponse, regionsResponse,
   statusResponse, stopsResponse, trainsResponse,
@@ -68,7 +68,10 @@ store.health['safety'] = { count: signals.length, lastOkAt: now };
 // Push (FCM): solo las alertas críticas que no estaban ya en la publicación anterior. Un fallo aquí no afecta a los datos.
 try {
   const fcm = fcmConfigFromEnv();
-  if (fcm) {
+  if (!fcm) {
+    const why = fcmConfigProblem();
+    if (why) { store.health['fcm'] = { lastError: why }; console.error('[fcm]', why); }
+  } else {
     const prevCritical = await fetchPreviousCriticalIds(process.env.SAFETY_PREV_URL?.replace('trains.json', 'safety.json') ?? 'https://santiatienza-collab.github.io/anden-datos/api/v1/safety.json');
     const toSend: { id: string; kind: string; severity: string; title: string; detail: string }[] = prevCritical ? newCritical(signals, prevCritical) : [];
     // Prueba manual: si el flujo lo pide (fichero push-test.flag en el repositorio), se envía una notificación de prueba.
