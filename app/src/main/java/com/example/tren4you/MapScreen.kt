@@ -8,6 +8,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -26,6 +27,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Place
+import androidx.compose.material.icons.filled.Schedule
+import androidx.compose.material.icons.filled.Accessible
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Train
 import androidx.compose.material.icons.filled.Warning
@@ -573,6 +576,7 @@ private fun MapContainer(
     AndroidView(factory = { mapView }, modifier = Modifier.fillMaxSize())
 }
 
+@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Composable
 private fun TopBar(
     trains: List<Train>, filter: Level?,
@@ -583,12 +587,20 @@ private fun TopBar(
     Surface(shape = RoundedCornerShape(16.dp), color = Gray800.copy(alpha = 0.95f)) {
         Column(Modifier.padding(horizontal = 14.dp, vertical = 10.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("ANDÉN", color = AndenYellow, fontSize = 20.sp, fontWeight = FontWeight.Bold)
-                Spacer(Modifier.width(8.dp))
-                Text("Incidencias y retrasos horarios en la red ferroviaria española", color = Gray400, fontSize = 12.sp, lineHeight = 15.sp, maxLines = 2, modifier = Modifier.weight(1f))
+                Text("Andén", color = AndenYellow, fontSize = 22.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
                 Icon(Icons.Filled.Search, "Buscar estación", tint = AndenYellow,
                     modifier = Modifier.clip(CircleShape).clickable(onClick = onSearch).padding(4.dp).size(24.dp))
             }
+            Spacer(Modifier.height(6.dp))
+            // Qué ofrece la app: tres etiquetas con icono y, debajo, el ámbito
+            // Si no caben en una fila (letra grande del sistema), pasan a una segunda en vez de recortarse
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(5.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                FeatureChip(Icons.Filled.Warning, "Incidencias")
+                FeatureChip(Icons.Filled.Schedule, "Retrasos horarios")
+                FeatureChip(Icons.Filled.Accessible, "Accesibilidad")
+            }
+            Spacer(Modifier.height(4.dp))
+            Text("en la red ferroviaria española", color = Gray400, fontSize = 11.sp, modifier = Modifier.padding(start = 2.dp))
             Spacer(Modifier.height(8.dp))
             // Cuatro botones iguales: número de trenes y qué significa cada color
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -609,6 +621,20 @@ private fun TopBar(
                 }
             }
         }
+    }
+}
+
+/** Etiqueta informativa del panel superior (no es un botón). */
+@Composable
+private fun FeatureChip(icon: androidx.compose.ui.graphics.vector.ImageVector, text: String, modifier: Modifier = Modifier) {
+    Row(
+        modifier.clip(RoundedCornerShape(20.dp)).background(Gray900).padding(horizontal = 6.dp, vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.Center,
+    ) {
+        Icon(icon, null, tint = AndenYellow, modifier = Modifier.size(12.dp))
+        Spacer(Modifier.width(3.dp))
+        Text(text, color = AndenWhite, fontSize = 10.sp, fontWeight = FontWeight.Medium, maxLines = 1, softWrap = false)
     }
 }
 
