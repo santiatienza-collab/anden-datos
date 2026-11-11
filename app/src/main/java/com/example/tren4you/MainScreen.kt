@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Accessible
 import androidx.compose.material.icons.filled.Map
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Schedule
@@ -37,6 +38,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
@@ -163,6 +165,13 @@ fun MainScreen(openSection: String? = null, onOpened: () -> Unit = {}) {
                                     BadgedBox(badge = { Badge(containerColor = LevelRed, contentColor = AndenWhite) { Text("$badge", fontSize = 10.sp) } }) {
                                         if (tint != null) Icon(s.icon, s.label, tint = tint) else Icon(s.icon, s.label)
                                     }
+                                } else if (s == Section.Stations) {
+                                    // Señal fija (sin texto) de que en Estaciones también se consulta la accesibilidad
+                                    BadgedBox(badge = {
+                                        Badge(containerColor = Color(0xFF2F80ED), contentColor = AndenWhite) {
+                                            Icon(Icons.Filled.Accessible, "Accesibilidad", modifier = Modifier.size(10.dp))
+                                        }
+                                    }) { Icon(s.icon, s.label) }
                                 } else Icon(s.icon, s.label)
                             }
                         },

@@ -292,8 +292,7 @@ function renderStations() {
     const tree = {};
     for (const s of pool) ((tree[s.region ?? '_fuera'] ??= {})[s.province ?? 'Fuera de España'] ??= []).push(s);
     const rName = (id) => (id === '_fuera' ? 'Fuera de España' : regionName(id));
-    const cnt = (list) => { const n = list.filter((s) => s.alerts > 0).length, a = list.filter((s) => s.accessibility).length;
-      return (a ? '<span class="accb" title="Estaciones con problemas de accesibilidad">♿ ' + a + '</span> ' : '') + (n ? '⚠️ ' + n + ' · ' : '') + list.length; };
+    const cnt = (list) => { const n = list.filter((s) => s.alerts > 0).length; return (n ? '⚠️ ' + n + ' · ' : '') + list.length; };
     const outLast = (a, b) => (a === '_fuera' || a === 'Fuera de España') - (b === '_fuera' || b === 'Fuera de España');
     body = Object.keys(tree).sort((a, b) => outLast(a, b) || rName(a).localeCompare(rName(b), 'es')).map((rid) => {
       const provs = tree[rid], pkeys = Object.keys(provs).sort((a, b) => outLast(a, b) || a.localeCompare(b, 'es'));

@@ -118,5 +118,6 @@ nav button.blink { animation: neon 1.2s infinite; color: #fff; border: 2px solid
 .btn[disabled] { background: var(--g800); color: var(--g400); cursor: default; }
 
 
-/* Insignia azul de accesibilidad junto al contador de Estaciones */
-.accb { background: rgba(77,163,255,.18); color: #4da3ff; border-radius: 999px; padding: 1px 8px; font-size: 12px; font-weight: 700; margin-right: 4px; }
+
+/* Icono azul de accesibilidad en la pestaña Estaciones */
+.acc-tab { font-size: 13px; margin-left: 4px; vertical-align: 1px; }
