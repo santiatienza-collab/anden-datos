@@ -29,11 +29,11 @@ main > section { position: absolute; inset: 0; overflow: auto; padding: 14px; }
 main > section[hidden] { display: none; }
 #tab-map[hidden] { display: none; }
 #tab-map { padding: 0; display: flex; flex-direction: column; overflow: hidden; }
-#counters { display: flex; gap: 8px; padding: 10px; background: var(--g800); }
-.counter { flex: 1; text-align: center; border-radius: 12px; padding: 7px 4px; background: var(--g900); cursor: pointer; border: 2px solid transparent; }
+#counters { display: flex; gap: 6px; padding: 6px 10px; background: var(--g800); }
+.counter { flex: 1; text-align: center; border-radius: 10px; padding: 3px 4px; line-height: 1.25; background: var(--g900); cursor: pointer; border: 2px solid transparent; }
 .counter.on { border-color: var(--yellow); }
-.counter b { display: block; font-size: 18px; }
-.counter span { font-size: 11px; color: var(--g400); }
+.counter b { display: block; font-size: 14px; }
+.counter span { font-size: 10px; color: var(--g400); }
 .dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 5px; }
 #map { flex: 1; min-height: 0; }
 .row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 12px; }
@@ -136,3 +136,12 @@ nav button.blink { animation: neon 1.2s infinite; color: #fff; border: 2px solid
   .hdr-r select { width: 100%; }
   .sub { max-width: none; }
 }
+
+/* Reloj del subtítulo (aguja que gira despacio) y leyenda del mapa */
+.clk { vertical-align: -2px; margin-right: 6px; }
+.clk .mh { transform-origin: 8px 8px; animation: clk-spin 8s linear infinite; }
+@keyframes clk-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .clk .mh { animation: none; } }
+#legend { position: absolute; right: 10px; bottom: 34px; z-index: 5; background: rgba(42,42,46,.93); border-radius: 12px; padding: 7px 10px; font-size: 11px; line-height: 1.5; pointer-events: none; }
+#legend i { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 6px; vertical-align: -1px; box-shadow: 0 0 0 1px #1c1c1f; }
+#legend i.ring { background: #fff; box-shadow: 0 0 0 1.5px #5a5a60; }

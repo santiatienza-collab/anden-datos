@@ -4,6 +4,7 @@ import android.content.Context
 import android.graphics.RectF
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -449,7 +450,12 @@ fun MapScreen(
             Spacer(Modifier.height(8.dp))
             RegionRow(regions, region, onPick = { onRegion(it); station = null; selectedId = null })
             Spacer(Modifier.weight(1f))
-            StatusLine(dataTimeSec, now, error)
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Bottom) {
+                StatusLine(dataTimeSec, now, error)
+                Spacer(Modifier.weight(1f))
+                // La leyenda se oculta mientras hay una ficha abierta, para no taparla
+                if (selected == null && station == null) MapLegend(dark)
+            }
             Spacer(Modifier.height(8.dp))
             when {
                 selected != null -> TrainCard(selected, onClose = { selectedId = null })
@@ -587,30 +593,59 @@ private fun TopBar(
                 Icon(Icons.Filled.Search, "Buscar estación", tint = AndenYellow,
                     modifier = Modifier.clip(CircleShape).clickable(onClick = onSearch).padding(4.dp).size(24.dp))
             }
-            Text(
-                "Monitoriza en tiempo real la red de trenes en todo el territorio nacional, informando de incidencias en la red ferroviaria, así como la accesibilidad para personas con discapacidad en cada estación.",
-                color = Gray400, fontSize = 11.sp, lineHeight = 14.sp, maxLines = 5,
-            )
-            Spacer(Modifier.height(8.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                LiveClock(13.dp)
+                Spacer(Modifier.width(6.dp))
+                Text("Incidencias en la red nacional de trenes", color = Gray400, fontSize = 12.sp)
+            }
+            Spacer(Modifier.height(6.dp))
             // Cuatro botones iguales: número de trenes y qué significa cada color
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 for ((l, label) in listOf(Level.Green to "Puntuales", Level.Amber to "Retraso", Level.Red to "Graves", Level.Gray to "Sin dato")) {
                     val on = filter == l
                     Column(
-                        Modifier.weight(1f).clip(RoundedCornerShape(12.dp)).background(if (on) AndenYellow else Gray900)
-                            .clickable { onFilter(l) }.padding(vertical = 7.dp),
+                        Modifier.weight(1f).clip(RoundedCornerShape(10.dp)).background(if (on) AndenYellow else Gray900)
+                            .clickable { onFilter(l) }.padding(vertical = 3.dp),
                         horizontalAlignment = Alignment.CenterHorizontally,
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Box(Modifier.size(9.dp).clip(CircleShape).background(l.color()))
-                            Spacer(Modifier.width(5.dp))
-                            Text("${counts[l] ?: 0}", color = if (on) Gray950 else AndenWhite, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                            Box(Modifier.size(7.dp).clip(CircleShape).background(l.color()))
+                            Spacer(Modifier.width(4.dp))
+                            Text("${counts[l] ?: 0}", color = if (on) Gray950 else AndenWhite, fontSize = 13.sp, fontWeight = FontWeight.Bold)
                         }
-                        Text(label, color = if (on) Gray950 else Gray400, fontSize = 10.sp, maxLines = 1, softWrap = false)
+                        Text(label, color = if (on) Gray950 else Gray400, fontSize = 9.sp, lineHeight = 11.sp, maxLines = 1, softWrap = false)
                     }
                 }
             }
         }
+    }
+}
+
+/** Leyenda fija del código de colores del mapa. */
+@Composable
+private fun MapLegend(dark: Boolean) {
+    val c = Palette(dark)
+    Surface(shape = RoundedCornerShape(12.dp), color = Gray800.copy(alpha = 0.92f)) {
+        Column(Modifier.padding(horizontal = 9.dp, vertical = 7.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+            LegendRow(LevelGreen, "Puntual · menos de 5 min")
+            LegendRow(LevelAmber, "Retraso · 5 a 14 min")
+            LegendRow(LevelRed, "Grave · 15+ min / cancelado")
+            LegendRow(LevelGray, "Sin dato")
+            LegendRow(Color.White, "Según horario", ring = true)
+            LegendRow(c.stationAlert, "Estación con aviso")
+        }
+    }
+}
+
+@Composable
+private fun LegendRow(color: Color, text: String, ring: Boolean = false) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Box(
+            Modifier.size(9.dp).clip(CircleShape).background(color)
+                .then(if (ring) Modifier.border(1.5.dp, Gray600, CircleShape) else Modifier.border(1.dp, Gray900, CircleShape)),
+        )
+        Spacer(Modifier.width(6.dp))
+        Text(text, color = AndenWhite, fontSize = 9.5.sp, lineHeight = 12.sp, maxLines = 1, softWrap = false)
     }
 }
 
