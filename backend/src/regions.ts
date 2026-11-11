@@ -1,5 +1,5 @@
 // Comunidades autónomas: asigna cada punto (tren o estación) a su comunidad por polígonos.
-// Datos: Natural Earth (dominio público), generados con tools/geo/build-regions.mjs.
+// Datos: Eurostat GISCO NUTS 2021 (© EuroGeographics), generados con tools/geo/build-geo.mjs (ver geo.config.json).
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { locate, type Area } from './geo.ts';

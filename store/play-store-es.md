@@ -49,7 +49,7 @@ Renfe (AVE, Avlo, Larga Distancia, Avant, Media Distancia, Cercanías y Rodalies
 Los datos se actualizan cada pocos minutos y la app te indica la antigüedad de lo que ves. En algunas redes no se publican retrasos en tiempo real (por ejemplo SFM en Mallorca): en ese caso verás los horarios oficiales y la posición se marca como estimada.
 
 **AVISO**
-Andén es una aplicación independiente y no está afiliada a Renfe, Adif ni a ningún operador. Los datos proceden de fuentes abiertas de cada operador y son orientativos: para decidir un viaje, consulta siempre los canales oficiales. Mapa: © colaboradores de OpenStreetMap, OpenMapTiles y OpenFreeMap.
+Andén es una aplicación independiente y no está afiliada a Renfe, Adif ni a ningún operador. Los datos proceden de fuentes abiertas de cada operador y son orientativos: para decidir un viaje, consulta siempre los canales oficiales. Mapa: © colaboradores de OpenStreetMap, OpenMapTiles y OpenFreeMap. Límites administrativos: © EuroGeographics (Eurostat GISCO).
 
 ## Palabras clave sugeridas
 trenes, retrasos, alertas de seguridad, incidencias ferroviarias, Renfe, Cercanías, Rodalies, AVE, horarios tren, estado de trenes, accesibilidad, ascensores estaciones

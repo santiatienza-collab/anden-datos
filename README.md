@@ -48,7 +48,9 @@ Requiere Node 24 o superior (usa `node:sqlite` y TypeScript sin compilar).
 - **Consorci de Transports de Mallorca**: horarios GTFS de SFM (tren T1, T2, T3) y metro M1 — CC BY 4.0.
   No hay tiempo real: las posiciones en Mallorca se estiman según el horario y se marcan como tales.
 - **Mapa**: © OpenStreetMap contributors, OpenMapTiles y OpenFreeMap.
-- **Comunidades autónomas**: Natural Earth (dominio público).
+- **Comunidades autónomas y provincias**: Eurostat GISCO, NUTS 2021, escala 1:1 000 000 (© EuroGeographics para los límites administrativos).
+  Se regeneran con `tools/geo` (TopoJSON simplificado): edita `tools/geo/geo.config.json` (fuente, nivel de detalle) y ejecuta
+  `npm install && npm run geo` dentro de `tools/geo`; después `npm test --prefix backend`.
 
 La gravedad de los avisos se estima a partir de su texto (los feeds no traen causa ni efecto). Los datos son
 orientativos: para decisiones de viaje consulta los canales oficiales del operador.

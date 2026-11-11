@@ -1,0 +1,14 @@
+{
+  "name": "anden-geo",
+  "private": true,
+  "type": "module",
+  "description": "Herramienta para regenerar los contornos de comunidades y provincias (se ejecuta a mano, no forma parte de la app).",
+  "scripts": {
+    "geo": "node build-geo.mjs"
+  },
+  "dependencies": {
+    "topojson-client": "^3.1.0",
+    "topojson-server": "^3.0.1",
+    "topojson-simplify": "^3.0.3"
+  }
+}

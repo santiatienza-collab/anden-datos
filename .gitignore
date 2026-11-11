@@ -31,3 +31,5 @@ node_modules/
 /tools/probe/last-run.json
 .kotlin/
 app/google-services.json
+/tools/geo/cache/
+/tools/geo/node_modules/

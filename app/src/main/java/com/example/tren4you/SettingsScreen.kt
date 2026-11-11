@@ -160,7 +160,7 @@ fun SettingsScreen(dark: Boolean, onDark: (Boolean) -> Unit, notify: Boolean, on
             )
             Spacer(Modifier.height(8.dp))
             Text(
-                "Mapa: © OpenStreetMap contributors, OpenMapTiles y OpenFreeMap. Comunidades autónomas: Natural Earth.",
+                "Mapa: © OpenStreetMap contributors, OpenMapTiles y OpenFreeMap. Límites administrativos: © EuroGeographics (Eurostat GISCO).",
                 color = Gray400, fontSize = 12.sp, lineHeight = 17.sp,
             )
         }

@@ -1,0 +1,54 @@
+{
+  "_ayuda": "Configuración de build-geo.mjs. Para cambiar de fuente edita 'source'; para cambiar el detalle edita 'keep' (fracción de vértices que se conservan, 0-1). Después ejecuta: npm run geo  (dentro de tools/geo).",
+
+  "source": {
+    "_nota": "Eurostat GISCO, NUTS 2021 (© EuroGeographics, uso libre citando la fuente). resolution: 01M (1:1 millón, más detalle) | 03M | 10M. level: 2 = comunidades, 3 = provincias.",
+    "url": "https://gisco-services.ec.europa.eu/distribution/v2/nuts/geojson/NUTS_RG_{resolution}_2021_4326_LEVL_{level}.geojson",
+    "resolution": "01M"
+  },
+
+  "filter": { "property": "CNTR_CODE", "equals": "ES" },
+  "idProperty": "NUTS_ID",
+  "quantization": 100000,
+  "decimals": 4,
+
+  "layers": {
+    "regions": {
+      "level": 2,
+      "keep": 0.6,
+      "idFrom": "slug",
+      "output": "backend/data/regions.json",
+      "topo": "backend/data/regions.topo.json",
+      "names": {
+        "ES11": "Galicia", "ES12": "Principado de Asturias", "ES13": "Cantabria", "ES21": "País Vasco", "ES22": "Navarra",
+        "ES23": "La Rioja", "ES24": "Aragón", "ES30": "Comunidad de Madrid", "ES41": "Castilla y León", "ES42": "Castilla-La Mancha",
+        "ES43": "Extremadura", "ES51": "Cataluña", "ES52": "Comunitat Valenciana", "ES53": "Illes Balears", "ES61": "Andalucía",
+        "ES62": "Región de Murcia", "ES63": "Ceuta", "ES64": "Melilla", "ES70": "Canarias"
+      }
+    },
+    "provinces": {
+      "level": 3,
+      "keep": 0.6,
+      "idFrom": "lowercase",
+      "output": "backend/data/provinces.json",
+      "topo": "backend/data/provinces.topo.json",
+      "_nota": "Varias islas forman una provincia (Baleares, Las Palmas, Santa Cruz de Tenerife): se agrupan por nombre.",
+      "names": {
+        "ES111": "A Coruña", "ES112": "Lugo", "ES113": "Ourense", "ES114": "Pontevedra", "ES120": "Asturias", "ES130": "Cantabria",
+        "ES211": "Álava", "ES212": "Gipuzkoa", "ES213": "Bizkaia", "ES220": "Navarra", "ES230": "La Rioja",
+        "ES241": "Huesca", "ES242": "Teruel", "ES243": "Zaragoza", "ES300": "Madrid",
+        "ES411": "Ávila", "ES412": "Burgos", "ES413": "León", "ES414": "Palencia", "ES415": "Salamanca", "ES416": "Segovia",
+        "ES417": "Soria", "ES418": "Valladolid", "ES419": "Zamora",
+        "ES421": "Albacete", "ES422": "Ciudad Real", "ES423": "Cuenca", "ES424": "Guadalajara", "ES425": "Toledo",
+        "ES431": "Badajoz", "ES432": "Cáceres",
+        "ES511": "Barcelona", "ES512": "Girona", "ES513": "Lleida", "ES514": "Tarragona",
+        "ES521": "Alicante", "ES522": "Castellón", "ES523": "Valencia",
+        "ES531": "Illes Balears", "ES532": "Illes Balears", "ES533": "Illes Balears",
+        "ES611": "Almería", "ES612": "Cádiz", "ES613": "Córdoba", "ES614": "Granada", "ES615": "Huelva", "ES616": "Jaén",
+        "ES617": "Málaga", "ES618": "Sevilla", "ES620": "Murcia", "ES630": "Ceuta", "ES640": "Melilla",
+        "ES703": "Santa Cruz de Tenerife", "ES706": "Santa Cruz de Tenerife", "ES707": "Santa Cruz de Tenerife", "ES709": "Santa Cruz de Tenerife",
+        "ES704": "Las Palmas", "ES705": "Las Palmas", "ES708": "Las Palmas"
+      }
+    }
+  }
+}
