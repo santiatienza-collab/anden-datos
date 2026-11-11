@@ -454,7 +454,7 @@ fun MapScreen(
                 StatusLine(dataTimeSec, now, error)
                 Spacer(Modifier.weight(1f))
                 // La leyenda se oculta mientras hay una ficha abierta, para no taparla
-                if (selected == null && station == null) MapLegend(dark)
+                if (selected == null && station == null) MapLegend()
             }
             Spacer(Modifier.height(8.dp))
             when {
@@ -593,11 +593,7 @@ private fun TopBar(
                 Icon(Icons.Filled.Search, "Buscar estación", tint = AndenYellow,
                     modifier = Modifier.clip(CircleShape).clickable(onClick = onSearch).padding(4.dp).size(24.dp))
             }
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                LiveClock(13.dp)
-                Spacer(Modifier.width(6.dp))
-                Text("Incidencias en la red nacional de trenes", color = Gray400, fontSize = 12.sp)
-            }
+            Text("Incidencias en la red nacional de trenes", color = Gray400, fontSize = 12.sp)
             Spacer(Modifier.height(6.dp))
             // Cuatro botones iguales: número de trenes y qué significa cada color
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -623,16 +619,13 @@ private fun TopBar(
 
 /** Leyenda fija del código de colores del mapa. */
 @Composable
-private fun MapLegend(dark: Boolean) {
-    val c = Palette(dark)
+private fun MapLegend() {
     Surface(shape = RoundedCornerShape(12.dp), color = Gray800.copy(alpha = 0.92f)) {
         Column(Modifier.padding(horizontal = 9.dp, vertical = 7.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-            LegendRow(LevelGreen, "Puntual · menos de 5 min")
+            LegendRow(LevelGreen, "Puntual · <5 min")
             LegendRow(LevelAmber, "Retraso · 5 a 14 min")
             LegendRow(LevelRed, "Grave · 15+ min / cancelado")
             LegendRow(LevelGray, "Sin dato")
-            LegendRow(Color.White, "Según horario", ring = true)
-            LegendRow(c.stationAlert, "Estación con aviso")
         }
     }
 }
@@ -649,22 +642,37 @@ private fun LegendRow(color: Color, text: String, ring: Boolean = false) {
     }
 }
 
+/**
+ * Reloj verde con fecha y hora actuales (se actualiza cada segundo). Sustituye al cartel de "Datos de X min": solo cambia
+ * a un aviso ámbar si hay un problema con los datos (sin conexión o datos antiguos).
+ */
 @Composable
 private fun StatusLine(dataTimeSec: Long?, now: Long, error: String?) {
     val age = dataTimeSec?.let { now / 1000 - it }
     val stale = age != null && age > 1_200 // más de 20 min: algo falla en la publicación de datos
-    val text = when {
-        age == null && error == null -> "Cargando trenes…"
-        age == null -> "Sin conexión con los datos ($error)"
-        error != null -> "Sin conexión · datos de ${ageLabel(age).removePrefix("hace ")}"
-        stale -> "Datos antiguos (${ageLabel(age)})"
-        else -> "Datos de ${ageLabel(age).removePrefix("hace ")}"
+    val warning = when {
+        age == null && error != null -> "Sin conexión con los datos ($error)"
+        error != null && age != null -> "Sin conexión · datos de ${ageLabel(age).removePrefix("hace ")}"
+        stale -> "Datos antiguos (${ageLabel(age!!)})"
+        else -> null
     }
-    Text(
-        text, color = if (error != null || stale) LevelAmber else Gray400, fontSize = 11.sp,
-        modifier = Modifier.clip(RoundedCornerShape(50)).background(Gray900.copy(alpha = 0.88f))
-            .padding(horizontal = 10.dp, vertical = 4.dp),
-    )
+    val shape = Modifier.clip(RoundedCornerShape(50)).background(Gray900.copy(alpha = 0.88f)).padding(horizontal = 10.dp, vertical = 4.dp)
+    if (warning != null) {
+        Text(warning, color = LevelAmber, fontSize = 11.sp, modifier = shape)
+        return
+    }
+    val format = remember {
+        // Hora local del dispositivo (zona horaria por defecto), sin año para que quepa junto a la leyenda
+        java.text.SimpleDateFormat("EEE d MMM · HH:mm:ss", java.util.Locale("es", "ES"))
+    }
+    Row(shape, verticalAlignment = Alignment.CenterVertically) {
+        LiveClock(12.dp, LevelGreen)
+        Spacer(Modifier.width(6.dp))
+        Text(
+            format.format(java.util.Date(now)), color = LevelGreen, fontSize = 11.sp, fontWeight = FontWeight.Medium,
+            style = androidx.compose.ui.text.TextStyle(fontFeatureSettings = "tnum"),
+        )
+    }
 }
 
 @Composable
