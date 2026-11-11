@@ -588,7 +588,7 @@ private fun TopBar(
                     modifier = Modifier.clip(CircleShape).clickable(onClick = onSearch).padding(4.dp).size(24.dp))
             }
             Text(
-                "Monitoriza en tiempo real la red de trenes en todo el territorio nacional, informando de retrasos horarios, accesibilidad para personas con discapacidad en cada estación e incidencias en la red ferroviaria.",
+                "Monitoriza en tiempo real la red de trenes en todo el territorio nacional, informando de incidencias en la red ferroviaria, así como la accesibilidad para personas con discapacidad en cada estación.",
                 color = Gray400, fontSize = 11.sp, lineHeight = 14.sp, maxLines = 5,
             )
             Spacer(Modifier.height(8.dp))
