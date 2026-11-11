@@ -145,7 +145,19 @@ function initMap() {
   }
 }
 
+/** Los estilos piden el nombre en inglés (name_en); los datos traen también el castellano (name:es): se pide primero ese. */
+function spanishLabels() {
+  const rx = /\["get","(name_en|name:latin)"\]/g;
+  for (const l of map.getStyle().layers) {
+    if (l.type !== 'symbol' || !l.layout || !l.layout['text-field']) continue;
+    const json = JSON.stringify(l.layout['text-field']);
+    if (!json.includes('name_en')) continue;
+    try { map.setLayoutProperty(l.id, 'text-field', JSON.parse(json.replace(rx, '["coalesce",["get","name:es"],["get","$1"]]'))); } catch (_) { /* esa capa se queda como estaba */ }
+  }
+}
+
 async function addLayers() {
+  spanishLabels();
   mapReady = false; // hasta que las capas estén de nuevo
   const c = palette(), empty = { type: 'FeatureCollection', features: [] };
   map.addSource('regions', { type: 'geojson', data: regionsGeoData || empty });

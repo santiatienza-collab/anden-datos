@@ -72,7 +72,9 @@ import com.example.tren4you.ui.theme.LevelAmber
 import com.example.tren4you.ui.theme.LevelGray
 import com.example.tren4you.ui.theme.LevelGreen
 import com.example.tren4you.ui.theme.LevelRed
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
 import org.maplibre.android.MapLibre
@@ -187,6 +189,27 @@ private fun hideMaritimeBoundaries(style: Style) {
             layer.setFilter(if (current != null) Expression.all(current, notMaritime) else notMaritime)
         }
     }
+}
+
+/**
+ * Los estilos piden el nombre en inglés (name_en). Los datos del mapa traen también el castellano (name:es). Se descarga el estilo
+ * y se cambia el texto ANTES de dárselo al mapa (leer expresiones desde la librería nativa la hace cerrarse): primero name:es y,
+ * si un lugar no lo tiene, el inglés y luego el nombre local. Si falla la descarga, se usa el estilo original.
+ */
+private suspend fun spanishStyleJson(url: String): String? = withContext(Dispatchers.IO) {
+    runCatching {
+        val conn = java.net.URL(url).openConnection() as java.net.HttpURLConnection
+        conn.connectTimeout = 8_000
+        conn.readTimeout = 10_000
+        try {
+            if (conn.responseCode != 200) return@runCatching null
+            val text = conn.inputStream.bufferedReader().readText()
+            val get = Regex("""\[\s*"get"\s*,\s*"(name_en|name:latin)"\s*]""")
+            get.replace(text) { m -> """["coalesce",["get","name:es"],["get","${m.groupValues[1]}"]]""" }
+        } finally {
+            conn.disconnect()
+        }
+    }.getOrNull()
 }
 
 /** Modo oscuro: las etiquetas del mapa base (países, comunidades, ciudades) vienen en grises tenues; se aclaran y se les da un halo oscuro. */
@@ -554,7 +577,10 @@ private fun MapContainer(
         if (appliedDark == dark) return@LaunchedEffect
         appliedDark = dark
         onMap(m, false)
-        m.setStyle(Style.Builder().fromUri(if (dark) STYLE_DARK else STYLE_LIGHT)) { style ->
+        val url = if (dark) STYLE_DARK else STYLE_LIGHT
+        val json = spanishStyleJson(url)
+        val builder = if (json != null) Style.Builder().fromJson(json) else Style.Builder().fromUri(url)
+        m.setStyle(builder) { style ->
             hideMaritimeBoundaries(style)
             if (dark) brightenBaseLabels(style)
             addAndenLayers(style, dark)
