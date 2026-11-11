@@ -39,6 +39,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -484,6 +485,8 @@ private fun MapContainer(
     onTap: (trainId: String?, stationId: String?, regionId: String?) -> Unit,
 ) {
     val lifecycle = LocalLifecycleOwner.current.lifecycle
+    // El oyente de toques se crea una sola vez: sin esto se quedaría con la lista de estaciones y comunidades vacía del primer instante.
+    val currentOnTap by rememberUpdatedState(onTap)
     var mapRef by remember { mutableStateOf<MapLibreMap?>(null) }
     var appliedDark by remember { mutableStateOf<Boolean?>(null) }
 
@@ -501,7 +504,7 @@ private fun MapContainer(
                     val box = RectF(p.x - 24f, p.y - 24f, p.x + 24f, p.y + 24f)
                     val station = if (train == null) m.queryRenderedFeatures(box, AL_LAYER, ST_LAYER).firstOrNull()?.getStringProperty("id") else null
                     val regionId = if (train == null && station == null) m.queryRenderedFeatures(p, RG_FILL).firstOrNull()?.getStringProperty("id") else null
-                    onTap(train, station, regionId)
+                    currentOnTap(train, station, regionId)
                     train != null || station != null || regionId != null
                 }
                 mapRef = m
