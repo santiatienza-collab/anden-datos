@@ -121,7 +121,8 @@ private const val RG_LINE = "regions-line"
 // Atribución obligatoria: OpenFreeMap, OpenMapTiles y colaboradores de OSM (la muestra el botón (i)).
 // Para producción conviene autoalojar las teselas.
 private const val STYLE_LIGHT = "https://tiles.openfreemap.org/styles/positron"
-private const val STYLE_DARK = "https://tiles.openfreemap.org/styles/dark"
+// "fiord" (azul pizarra, etiquetas claras) en lugar de "dark" (casi negro, etiquetas grises): mucho más contraste.
+private const val STYLE_DARK = "https://tiles.openfreemap.org/styles/fiord"
 
 // Encuadre inicial: España peninsular y Baleares (Canarias, Ceuta y Melilla se ven al elegirlas).
 private val SPAIN = Region("espana", "España", -9.6, 35.9, 4.6, 43.9)
@@ -173,15 +174,28 @@ private fun levelExpr(): Expression = Expression.match(
     Expression.stop("red", Expression.color(LevelRed.toArgb())),
 )
 
+/** Modo oscuro: las etiquetas del mapa base (países, comunidades, ciudades) vienen en grises tenues; se aclaran y se les da un halo oscuro. */
+private fun brightenBaseLabels(style: Style) {
+    for (layer in style.layers) {
+        if (layer is SymbolLayer) {
+            layer.setProperties(
+                textColor(Expression.color(Color(0xFFF1F5FB).toArgb())),
+                textHaloColor(Expression.color(Color(0xFF1B2235).toArgb())),
+                textHaloWidth(1.6f),
+            )
+        }
+    }
+}
+
 /** Colores de las capas propias según el mapa base (claro u oscuro). */
 private class Palette(dark: Boolean) {
     val trainStroke = if (dark) AndenWhite else Gray900
-    val stationFill = if (dark) Gray800 else Color.White
-    val stationStroke = if (dark) Gray400 else Gray600
+    val stationFill = if (dark) Color(0xFFF2F4F8) else Color.White
+    val stationStroke = if (dark) Color(0xFF1B2235) else Gray600
     val stationAlert = if (dark) AndenYellow else Color(0xFFD99A00)
     val label = if (dark) AndenWhite else Gray900
-    val labelHalo = if (dark) Gray950 else Color.White
-    val regionLine = if (dark) Gray400 else Gray600
+    val labelHalo = if (dark) Color(0xFF1B2235) else Color.White
+    val regionLine = if (dark) Color(0xFFD7E1F2) else Gray600
     val regionAccent = if (dark) AndenYellow else Color(0xFFD99A00)
 }
 
@@ -519,6 +533,7 @@ private fun MapContainer(
         appliedDark = dark
         onMap(m, false)
         m.setStyle(Style.Builder().fromUri(if (dark) STYLE_DARK else STYLE_LIGHT)) { style ->
+            if (dark) brightenBaseLabels(style)
             addAndenLayers(style, dark)
             onMap(m, true)
         }
