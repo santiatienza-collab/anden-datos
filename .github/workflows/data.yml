@@ -17,10 +17,11 @@ permissions:
   id-token: write
   actions: write
 
-# Si hay varias ejecuciones a la vez (la cadena y el cron), solo importa la más reciente.
+# Solo una ejecución publica a la vez. La siguiente espera a que la actual termine en lugar de cancelarla: así ninguna
+# ejecución sale "cancelada" y la comprobación del final de la cadena siempre se completa (hay un tope de 12 min por ejecución).
 concurrency:
   group: pages
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   publish:
