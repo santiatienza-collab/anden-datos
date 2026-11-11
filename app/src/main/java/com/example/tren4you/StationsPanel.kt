@@ -19,6 +19,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Accessible
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.NotAccessible
@@ -41,6 +42,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -61,8 +63,8 @@ private const val OUTSIDE_ID = "_fuera"
 
 /** Nodo del árbol de estaciones: comunidad (nivel 0) → provincia (nivel 1) → estación (nivel 2). */
 private sealed interface Node {
-    data class Community(val id: String, val name: String, val total: Int, val alerts: Int, val open: Boolean) : Node
-    data class Province(val key: String, val name: String, val total: Int, val alerts: Int, val open: Boolean) : Node
+    data class Community(val id: String, val name: String, val total: Int, val alerts: Int, val access: Int, val open: Boolean) : Node
+    data class Province(val key: String, val name: String, val total: Int, val alerts: Int, val access: Int, val open: Boolean) : Node
     data class Leaf(val station: Station, val level: Int, val subtitle: String?) : Node
 }
 
@@ -109,12 +111,12 @@ fun StationsContent(
                 // Con una comunidad elegida (o el filtro de avisos) la rama sale desplegada; con toda España, plegada.
                 val rOpen = resolve("r:$rid", region != null || onlyAlerts)
                 buildList {
-                    add(Node.Community(rid, regionNames[rid] ?: OUTSIDE, inCommunity.size, inCommunity.count { it.alerts > 0 }, rOpen))
+                    add(Node.Community(rid, regionNames[rid] ?: OUTSIDE, inCommunity.size, inCommunity.count { it.alerts > 0 }, inCommunity.count { it.accessibilityIssue }, rOpen))
                     if (rOpen) provinces.forEach { (prov, list) ->
                         val key = "p:$rid/$prov"
                         // Las provincias salen plegadas, salvo que sea la única de la comunidad o se filtre por avisos.
                         val pOpen = resolve(key, onlyAlerts || provinces.size == 1)
-                        add(Node.Province(key, prov, list.size, list.count { it.alerts > 0 }, pOpen))
+                        add(Node.Province(key, prov, list.size, list.count { it.alerts > 0 }, list.count { it.accessibilityIssue }, pOpen))
                         if (pOpen) list.sortedWith(byAlerts.thenComparator { a, b -> collator.compare(a.name, b.name) })
                             .forEach { add(Node.Leaf(it, 2, null)) }
                     }
@@ -223,9 +225,23 @@ private fun TreeRow(level: Int, content: @Composable RowScope.() -> Unit) {
     }
 }
 
-/** Número de estaciones con aviso (insignia amarilla) y total de la rama. */
+/** Azul de la insignia de accesibilidad (se lee bien sobre el fondo oscuro). */
+private val AccessBlue = Color(0xFF4DA3FF)
+
+/** Estaciones con aviso (insignia amarilla), con problemas de accesibilidad (insignia azul con silla de ruedas) y total de la rama. */
 @Composable
-private fun Counts(alerts: Int, total: Int) {
+private fun Counts(alerts: Int, access: Int, total: Int) {
+    if (access > 0) {
+        Row(
+            Modifier.clip(RoundedCornerShape(50)).background(AccessBlue.copy(alpha = 0.18f)).padding(horizontal = 6.dp, vertical = 2.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(Icons.Filled.Accessible, "Estaciones con problemas de accesibilidad", tint = AccessBlue, modifier = Modifier.size(13.dp))
+            Spacer(Modifier.width(2.dp))
+            Text("$access", color = AccessBlue, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+        }
+        Spacer(Modifier.width(4.dp))
+    }
     if (alerts > 0) {
         Row(
             Modifier.clip(RoundedCornerShape(50)).background(AndenYellow.copy(alpha = 0.16f)).padding(horizontal = 7.dp, vertical = 2.dp),
@@ -250,7 +266,7 @@ private fun CommunityRow(n: Node.Community, onToggle: () -> Unit) {
         Icon(Icons.Filled.Place, null, tint = AndenYellow, modifier = Modifier.size(20.dp))
         Spacer(Modifier.width(10.dp))
         Text(n.name, color = AndenWhite, fontSize = 15.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
-        Counts(n.alerts, n.total)
+        Counts(n.alerts, n.access, n.total)
         Spacer(Modifier.width(4.dp))
         Icon(if (n.open) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore, if (n.open) "Plegar" else "Desplegar", tint = Gray400, modifier = Modifier.size(22.dp))
     }
@@ -264,7 +280,7 @@ private fun ProvinceRow(n: Node.Province, onToggle: () -> Unit) {
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(n.name, color = AndenWhite, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
-            Counts(n.alerts, n.total)
+            Counts(n.alerts, n.access, n.total)
             Spacer(Modifier.width(4.dp))
             Icon(if (n.open) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore, if (n.open) "Plegar" else "Desplegar", tint = Gray400, modifier = Modifier.size(20.dp))
         }
