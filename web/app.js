@@ -18,6 +18,7 @@ const SPAIN = [[-9.6, 35.9], [4.6, 43.9]];
 
 const S = {
   trains: [], stops: [], alerts: [], regions: [], region: '', tab: 'map',
+  safety: [], safetyNote: '', safetyStats: null, safetyLoaded: false, safetyLevel: null, safetyAcked: new Set(),
   level: null, service: null, sev: null, cat: null, onlyAlerts: false, q: '', generatedAt: 0,
 };
 let map, mapReady = false;
@@ -28,8 +29,8 @@ const norm = (s) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
 const regionName = (id) => S.regions.find((r) => r.id === id)?.name ?? id ?? '';
 // Los datos se piden cada 30 s. La caché de GitHub Pages puede durar 10 min: un parámetro distinto cada 30 s fuerza el dato más reciente.
 const REFRESH_MS = 30000;
-async function fetchJson(path) {
-  const r = await fetch(path + '?v=' + Math.floor(Date.now() / REFRESH_MS));
+async function fetchJson(path, bucketMs = REFRESH_MS) {
+  const r = await fetch(path + '?v=' + Math.floor(Date.now() / bucketMs));
   if (!r.ok) throw new Error('HTTP ' + r.status);
   return r.json();
 }
@@ -322,6 +323,108 @@ async function openStation(s) {
   if (mapReady && S.tab === 'map') map.flyTo({ center: [s.lon, s.lat], zoom: Math.max(map.getZoom(), 12) });
 }
 
+// ---------- Seguridad ----------
+const LV = {
+  critical: { label: 'CRÍTICO', color: '#ff453a' },
+  warning: { label: 'ATENCIÓN', color: '#ff9f0a' },
+  info: { label: 'INFORMACIÓN', color: '#8e8e93' },
+};
+const KIND_ICON = { accident: '🚨', signalling: '🚦', track: '🛤️', power: '⚡', closing_in: '🚆', stopped_train: '🚆', cascade: '⚠️' };
+const ORIGINAL_TITLE = document.title;
+let titleTimer = null;
+
+async function loadSafety() {
+  try {
+    const d = await fetchJson('api/v1/safety.json', 15000);
+    S.safety = d.signals ?? []; S.safetyNote = d.note ?? ''; S.safetyStats = d.stats ?? null; S.safetyLoaded = true;
+  } catch (_) { /* se conservan las últimas señales; el siguiente intento es en 15 s */ }
+  handleSafety();
+}
+
+const criticals = () => S.safety.filter((x) => x.severity === 'critical');
+const unseen = () => criticals().filter((x) => !S.safetyAcked.has(x.id));
+
+function handleSafety() {
+  const n = S.safety.filter((x) => x.severity !== 'info').length;
+  const b = $('#n-safety'); if (b) b.textContent = n || '';
+  // Avisos del navegador solo para críticas que no se hayan notificado en las últimas 6 h
+  const seen = JSON.parse(localStorage.getItem('anden_notified') || '{}'); const now = Date.now();
+  for (const k of Object.keys(seen)) if (now - seen[k] > 6 * 3600e3) delete seen[k];
+  for (const sig of criticals()) {
+    if (seen[sig.id]) continue;
+    seen[sig.id] = now;
+    browserNotify(sig);
+  }
+  localStorage.setItem('anden_notified', JSON.stringify(seen));
+  if (S.tab === 'safety') criticals().forEach((x) => S.safetyAcked.add(x.id));
+  renderSafety(); renderBanner();
+}
+
+function renderBanner() {
+  const el = $('#crit-banner'); const u = unseen();
+  const show = u.length > 0 && S.tab !== 'safety';
+  el.hidden = !show;
+  $('#tab-btn-safety').classList.toggle('blink', u.length > 0 && S.tab !== 'safety');
+  // El título de la pestaña del navegador también parpadea mientras haya una crítica sin revisar
+  if (u.length && !titleTimer) {
+    let on = false;
+    titleTimer = setInterval(() => { on = !on; document.title = on ? '⚠ ALERTA CRÍTICA · Andén' : ORIGINAL_TITLE; }, 1000);
+  } else if (!u.length && titleTimer) { clearInterval(titleTimer); titleTimer = null; document.title = ORIGINAL_TITLE; }
+  if (!show) return;
+  const f = u[0];
+  el.innerHTML = '<div class="ic">⚠️</div><div class="tx"><div class="k">ALERTA CRÍTICA' + (u.length > 1 ? ' · ' + u.length + ' activas' : '') + '</div><div class="t">' + esc(f.title) +
+    '</div><div class="d">' + esc(f.detail) + '</div><div class="go">Toca para ver en Seguridad</div></div><button class="x" data-act="ack-safety" aria-label="Descartar">✕</button>';
+  el.dataset.act = 'open-safety';
+}
+
+function renderSafety() {
+  const el = $('#tab-safety'); if (!el) return;
+  const all = S.safety;
+  const list = S.safetyLevel ? all.filter((x) => x.severity === S.safetyLevel) : all;
+  const perm = 'Notification' in window ? Notification.permission : 'unsupported';
+  const notifBtn = perm === 'granted' ? '<span class="note">🔔 Avisos del navegador activados (mientras la página esté abierta)</span>'
+    : perm === 'denied' ? '<span class="note">Los avisos del navegador están bloqueados en este sitio (cámbialo en los ajustes del navegador).</span>'
+    : perm === 'unsupported' ? ''
+    : '<button class="btn" data-act="notif">🔔 Activar avisos del navegador</button>';
+  const chips = all.length ? '<div class="row">' + [['', 'Todas', all.length], ['critical', 'Crítico', 0], ['warning', 'Atención', 0], ['info', 'Información', 0]].map(([k, label]) => {
+    const c = k ? all.filter((x) => x.severity === k).length : all.length;
+    return '<button class="chip' + ((S.safetyLevel ?? '') === k ? ' on' : '') + '" data-act="slevel" data-v="' + k + '"><b>' + c + '</b><small>' + label + '</small></button>';
+  }).join('') + '</div>' : '';
+  const body = !S.safetyLoaded ? '<div class="note">Cargando…</div>'
+    : !all.length ? '<div class="okbox"><div class="ic">✅</div><div><b>Sin señales de riesgo ahora</b><div class="note">' +
+        (S.safetyStats?.compared ? 'Se han comparado ' + S.safetyStats.compared + ' trenes con la actualización anterior.' : 'Aún no hay una actualización anterior con la que comparar posiciones.') + '</div></div></div>'
+    : list.map((x) => {
+        const lv = LV[x.severity] ?? LV.warning;
+        const clickable = x.lat != null && x.lon != null;
+        return '<div class="scard ' + esc(x.severity) + '"' + (clickable ? ' data-act="signal" data-v="' + esc(x.id) + '"' : '') + '><div class="ic">' + (KIND_ICON[x.kind] ?? '⚠️') + '</div><div><b>' + esc(x.title) + '</b><div class="note">' + esc(x.detail) +
+          '</div><div class="lv" style="color:' + lv.color + '">' + lv.label + '</div></div></div>';
+      }).join('');
+  el.innerHTML = '<div class="row"><b>Seguridad</b><span class="note">Vigilancia con datos abiertos</span></div>' + (notifBtn ? '<div class="row">' + notifBtn + '</div>' : '') + chips + body +
+    '<div class="snote">' + esc(S.safetyNote || 'Este panel no sustituye a la señalización ni a los sistemas del operador.') + '</div>';
+}
+
+function goSignal(id) {
+  const sig = S.safety.find((x) => x.id === id); if (!sig) return;
+  const t = [...(sig.tripIds ?? [])].reverse().map((tid) => S.trains.find((x) => x.tripId === tid)).find(Boolean);
+  if (t) return goTrain(t.tripId);
+  setTab('map');
+  if (map && sig.lat != null) setTimeout(() => map.flyTo({ center: [sig.lon, sig.lat], zoom: 10 }), 50);
+}
+
+async function enableBrowserNotifications() {
+  if (!('Notification' in window)) return;
+  await Notification.requestPermission();
+  renderSafety();
+}
+
+function browserNotify(sig) {
+  if (!('Notification' in window) || Notification.permission !== 'granted') return;
+  try {
+    const n = new Notification('⚠ ' + sig.title, { body: sig.detail + '\nDatos abiertos, orientativos: sigue siempre las indicaciones del operador.', tag: sig.id, requireInteraction: true, icon: 'icon.png' });
+    n.onclick = () => { window.focus(); setTab('safety'); n.close(); };
+  } catch (_) { /* algunos navegadores solo permiten notificaciones desde un service worker */ }
+}
+
 // ---------- Interfaz ----------
 function renderAll() {
   const sel = $('#region');
@@ -335,7 +438,8 @@ function renderAll() {
 function setTab(tab) {
   S.tab = tab;
   document.querySelectorAll('#tabs button').forEach((b) => b.classList.toggle('on', b.dataset.tab === tab));
-  for (const t of ['map', 'delays', 'alerts', 'stations']) $('#tab-' + t).hidden = t !== tab;
+  for (const t of ['map', 'delays', 'alerts', 'stations', 'safety']) $('#tab-' + t).hidden = t !== tab;
+  if (tab === 'safety') { S.safety.filter((x) => x.severity === 'critical').forEach((x) => S.safetyAcked.add(x.id)); renderSafety(); renderBanner(); }
   if (tab === 'stations') renderStations();
   if (tab === 'map' && map) setTimeout(() => map.resize(), 0);
 }
@@ -357,6 +461,11 @@ document.addEventListener('click', (e) => {
     case 'sev': S.sev = S.sev === v || !v ? null : v; renderDelays(); break;
     case 'cat': S.cat = v || null; renderAlerts(); break;
     case 'region': setRegion(v); break;
+    case 'slevel': S.safetyLevel = S.safetyLevel === v || !v ? null : v; renderSafety(); break;
+    case 'open-safety': setTab('safety'); break;
+    case 'ack-safety': S.safety.filter((x) => x.severity === 'critical').forEach((x) => S.safetyAcked.add(x.id)); renderBanner(); break;
+    case 'notif': enableBrowserNotifications(); break;
+    case 'signal': goSignal(v); break;
     case 'train': goTrain(v); break;
     case 'station': { const s = S.stops.find((x) => x.id === v); if (s) openStation(s); break; }
     case 'board':
@@ -375,11 +484,14 @@ $('#detail-close').addEventListener('click', () => ($('#detail').hidden = true))
   try { S.regions = (await j('api/v1/regions.json')).regions; } catch (_) { /* se reintenta con la siguiente carga */ }
   await loadAll();
   // Enlaces directos: #retrasos, #avisos, #estaciones
-  const direct = { retrasos: 'delays', avisos: 'alerts', estaciones: 'stations' }[location.hash.slice(1)];
+  const direct = { retrasos: 'delays', avisos: 'alerts', estaciones: 'stations', seguridad: 'safety' }[location.hash.slice(1)];
   if (direct) setTab(direct);
   setInterval(loadAll, REFRESH_MS);
+  // Seguridad se consulta aparte y más a menudo (15 s): el fichero es pequeño y así se ve cuanto antes una alerta nueva.
+  loadSafety();
+  setInterval(loadSafety, 15000);
   setInterval(renderAge, 15000);
   // Las pestañas en segundo plano frenan los temporizadores: al volver (o recuperar la conexión) se actualiza al momento.
-  document.addEventListener('visibilitychange', () => { if (!document.hidden) loadAll(); });
-  window.addEventListener('online', loadAll);
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) { loadAll(); loadSafety(); } });
+  window.addEventListener('online', () => { loadAll(); loadSafety(); });
 })();

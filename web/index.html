@@ -16,10 +16,13 @@
     <div class="hdr-r"><select id="region" aria-label="Comunidad autónoma"><option value="">Toda España</option></select></div>
   </header>
 
+  <div id="crit-banner" hidden role="alert"></div>
+
   <nav id="tabs" aria-label="Secciones">
     <button data-tab="map" class="on">🗺️ Mapa</button>
     <button data-tab="delays">⏱️ Retrasos <b id="n-delays"></b></button>
     <button data-tab="alerts">🔔 Avisos <b id="n-alerts"></b></button>
+    <button data-tab="safety" id="tab-btn-safety">🛡️ Seguridad <b id="n-safety"></b></button>
     <button data-tab="stations">🚉 Estaciones</button>
   </nav>
 
@@ -31,6 +34,7 @@
     <section id="tab-delays" hidden></section>
     <section id="tab-alerts" hidden></section>
     <section id="tab-stations" hidden></section>
+    <section id="tab-safety" hidden></section>
   </main>
 
   <aside id="detail" hidden>
