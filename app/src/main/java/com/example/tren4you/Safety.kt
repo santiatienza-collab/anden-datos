@@ -134,7 +134,7 @@ fun SafetyPage(data: SafetyData?, loaded: Boolean, onPick: (SafetySignal) -> Uni
                             Text("Sin señales de riesgo ahora", color = AndenWhite, fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
                             Text(
                                 if (data.compared > 0) "Se han comparado ${data.compared} trenes con la actualización anterior."
-                                else "Aún no hay una actualización anterior con la que comparar posiciones.",
+                                else "No hay trenes que comparar con la actualización anterior ahora mismo (por ejemplo, de madrugada).",
                                 color = Gray400, fontSize = 12.sp,
                             )
                         }

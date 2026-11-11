@@ -392,7 +392,7 @@ function renderSafety() {
   }).join('') + '</div>' : '';
   const body = !S.safetyLoaded ? '<div class="note">Cargando…</div>'
     : !all.length ? '<div class="okbox"><div class="ic">✅</div><div><b>Sin señales de riesgo ahora</b><div class="note">' +
-        (S.safetyStats?.compared ? 'Se han comparado ' + S.safetyStats.compared + ' trenes con la actualización anterior.' : 'Aún no hay una actualización anterior con la que comparar posiciones.') + '</div></div></div>'
+        (S.safetyStats?.compared ? 'Se han comparado ' + S.safetyStats.compared + ' trenes con la actualización anterior.' : 'No hay trenes que comparar con la actualización anterior ahora mismo (por ejemplo, de madrugada).') + '</div></div></div>'
     : list.map((x) => {
         const lv = LV[x.severity] ?? LV.warning;
         const clickable = x.lat != null && x.lon != null;
