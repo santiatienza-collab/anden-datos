@@ -30,9 +30,14 @@ const regionName = (id) => S.regions.find((r) => r.id === id)?.name ?? id ?? '';
 // Los datos se piden cada 30 s. La caché de GitHub Pages puede durar 10 min: un parámetro distinto cada 30 s fuerza el dato más reciente.
 const REFRESH_MS = 30000;
 async function fetchJson(path, bucketMs = REFRESH_MS) {
-  const r = await fetch(path + '?v=' + Math.floor(Date.now() / bucketMs));
-  if (!r.ok) throw new Error('HTTP ' + r.status);
-  return r.json();
+  // Tiempo límite de 15 s: sin él, una petición colgada (corte de red, cambio de wifi…) dejaba la web sin actualizarse hasta recargar.
+  const ctl = new AbortController();
+  const timer = setTimeout(() => ctl.abort(), 15000);
+  try {
+    const r = await fetch(path + '?v=' + Math.floor(Date.now() / bucketMs), { signal: ctl.signal });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    return await r.json();
+  } finally { clearTimeout(timer); }
 }
 // Un fallo puntual (p. ej. Pages redesplegándose) se reintenta una vez antes de darlo por malo.
 async function j(path) {
@@ -47,10 +52,10 @@ const inRegion = (list) => (S.region ? list.filter((x) => x.region === S.region)
 const delayed = (list) => list.filter((t) => sevOf(t));
 
 // ---------- Datos ----------
-let loading = false;
+let loading = false, loadingSince = 0, retryTimer = null;
 async function loadAll() {
-  if (loading) return;
-  loading = true;
+  if (loading && Date.now() - loadingSince < 45000) return; // pasados 45 s se da por colgada y se relanza
+  loading = true; loadingSince = Date.now();
   try {
     // Cada fichero va por separado: si uno falla se conservan los últimos datos buenos de los demás.
     const [t, st, al, rg] = await Promise.allSettled([
@@ -65,8 +70,9 @@ async function loadAll() {
     S.error = failed ? failed.reason?.message ?? 'sin conexión' : null;
   } finally { loading = false; }
   renderAll();
-  // Si aún no hay datos (primera carga fallida), se reintenta pronto en lugar de esperar al ciclo siguiente.
-  if (!S.trains.length || !S.regions.length) setTimeout(loadAll, 5000);
+  // Solo si NUNCA se ha cargado nada (primera carga fallida) se reintenta pronto, con un único temporizador.
+  // (Que no haya trenes de madrugada es normal y no debe provocar reintentos.)
+  if ((!S.generatedAt || !S.regions.length) && !retryTimer) retryTimer = setTimeout(() => { retryTimer = null; loadAll(); }, 5000);
 }
 
 function renderAge() {
@@ -126,6 +132,7 @@ function initMap() {
 }
 
 async function addLayers() {
+  mapReady = false; // hasta que las capas estén de nuevo
   const c = palette(), empty = { type: 'FeatureCollection', features: [] };
   map.addSource('regions', { type: 'geojson', data: regionsGeoData || empty });
   map.addLayer({ id: 'regions-fill', type: 'fill', source: 'regions', paint: { 'fill-color': c.accent, 'fill-opacity': ['case', ['==', ['get', 'id'], ['literal', S.region || '-']], 0.1, 0.01] } });
@@ -150,11 +157,15 @@ async function addLayers() {
 
 function pushMap() {
   if (!map || !mapReady) return;
-  let list = inRegion(S.trains);
-  if (S.level) list = list.filter((t) => t.level === S.level && !estimated(t));
-  map.getSource('trains').setData(trainsGeo(list));
-  map.getSource('stations').setData(stopsGeo(inRegion(S.stops)));
-  map.setPaintProperty('regions-fill', 'fill-opacity', ['case', ['==', ['get', 'id'], ['literal', S.region || '-']], 0.1, 0.01]);
+  try {
+    const tr = map.getSource('trains'), st = map.getSource('stations');
+    if (!tr || !st) return; // el estilo se está recargando: se reintenta en la próxima actualización
+    let list = inRegion(S.trains);
+    if (S.level) list = list.filter((t) => t.level === S.level && !estimated(t));
+    tr.setData(trainsGeo(list));
+    st.setData(stopsGeo(inRegion(S.stops)));
+    map.setPaintProperty('regions-fill', 'fill-opacity', ['case', ['==', ['get', 'id'], ['literal', S.region || '-']], 0.1, 0.01]);
+  } catch (e) { console.error('[mapa]', e); }
 }
 
 function fitRegion() {
@@ -430,7 +441,8 @@ function renderAll() {
   const sel = $('#region');
   if (sel.options.length <= 1 && S.regions.length) S.regions.forEach((r) => sel.add(new Option(r.name, r.id)));
   sel.value = S.region;
-  renderAge(); renderCounters(); pushMap(); renderDelays(); renderAlerts();
+  // Cada parte va aislada: si una falla, las demás se siguen actualizando
+  for (const f of [renderAge, renderCounters, pushMap, renderDelays, renderAlerts]) { try { f(); } catch (e) { console.error(e); } }
   // La lista de estaciones es grande: solo se redibuja si es la pestaña visible (o al cambiar de pestaña)
   if (S.tab === 'stations') renderStations();
 }
@@ -467,7 +479,7 @@ document.addEventListener('click', (e) => {
     case 'notif': enableBrowserNotifications(); break;
     case 'signal': goSignal(v); break;
     case 'train': goTrain(v); break;
-    case 'station': { const s = S.stops.find((x) => x.id === v); if (s) openStation(s); break; }
+    case 'station': { const s = S.stops.find((x) => x.id === v); if (s) { setTab('map'); openStation(s); } break; }
     case 'board':
       $('#dep').hidden = v !== 'dep'; $('#arr').hidden = v !== 'arr';
       $('#bt-dep').classList.toggle('on', v === 'dep'); $('#bt-arr').classList.toggle('on', v === 'arr'); break;
