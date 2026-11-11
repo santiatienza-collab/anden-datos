@@ -145,3 +145,8 @@ nav button.blink { animation: neon 1.2s infinite; color: #fff; border: 2px solid
 #legend { position: absolute; right: 10px; bottom: 34px; z-index: 5; background: rgba(42,42,46,.93); border-radius: 12px; padding: 7px 10px; font-size: 11px; line-height: 1.5; pointer-events: none; }
 #legend i { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 6px; vertical-align: -1px; box-shadow: 0 0 0 1px #1c1c1f; }
 #legend i.ring { background: #fff; box-shadow: 0 0 0 1.5px #5a5a60; }
+
+/* Separador fino amarillo que delimita el panel superior (se desvanece hacia los bordes) */
+header { position: relative; }
+header::after { content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 2px;
+  background: linear-gradient(90deg, rgba(255,214,10,0) 0%, #ffd60a 15%, #ffd60a 85%, rgba(255,214,10,0) 100%); }
