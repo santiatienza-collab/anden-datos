@@ -583,12 +583,14 @@ private fun TopBar(
     Surface(shape = RoundedCornerShape(16.dp), color = Gray800.copy(alpha = 0.95f)) {
         Column(Modifier.padding(horizontal = 14.dp, vertical = 10.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("Andén", color = AndenYellow, fontSize = 20.sp, fontWeight = FontWeight.Bold)
-                Spacer(Modifier.width(8.dp))
-                Text("Retrasos horarios e incidencias en trenes", color = Gray400, fontSize = 12.sp, lineHeight = 15.sp, maxLines = 2, modifier = Modifier.weight(1f))
+                Text("Andén", color = AndenYellow, fontSize = 22.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
                 Icon(Icons.Filled.Search, "Buscar estación", tint = AndenYellow,
                     modifier = Modifier.clip(CircleShape).clickable(onClick = onSearch).padding(4.dp).size(24.dp))
             }
+            Text(
+                "Monitoriza en tiempo real la red de trenes en todo el territorio nacional, informando de retrasos horarios, accesibilidad para personas con discapacidad en cada estación e incidencias en la red ferroviaria.",
+                color = Gray400, fontSize = 11.sp, lineHeight = 14.sp, maxLines = 5,
+            )
             Spacer(Modifier.height(8.dp))
             // Cuatro botones iguales: número de trenes y qué significa cada color
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {

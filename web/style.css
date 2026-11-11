@@ -1,3 +1,8 @@
+/* Inter (© The Inter Project Authors, SIL Open Font License 1.1), alojada aquí: no se pide nada a servidores externos */
+@font-face { font-family: 'Inter'; font-style: normal; font-weight: 100 900; font-display: swap; src: url('fonts/inter-latin-wght-normal.woff2') format('woff2-variations'), url('fonts/inter-latin-wght-normal.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD; }
+@font-face { font-family: 'Inter'; font-style: normal; font-weight: 100 900; font-display: swap; src: url('fonts/inter-latin-ext-wght-normal.woff2') format('woff2-variations'), url('fonts/inter-latin-ext-wght-normal.woff2') format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF; }
 :root {
   --g950: #141416; --g900: #1c1c1f; --g800: #2a2a2e; --g600: #5a5a60; --g400: #9a9aa2;
   --yellow: #ffd60a; --white: #f5f5f7;
@@ -6,15 +11,16 @@
 * { box-sizing: border-box; }
 html, body { height: 100%; margin: 0; }
 body { display: flex; flex-direction: column; background: var(--g900); color: var(--white);
-  font: 15px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  font: 15px/1.45 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; font-optical-sizing: auto; font-feature-settings: 'cv11', 'ss01'; -webkit-font-smoothing: antialiased; }
 header { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 14px; background: var(--g800); }
 .brand { display: flex; align-items: center; gap: 10px; min-width: 0; }
 .brand img { border-radius: 7px; }
-h1 { margin: 0; font-size: 20px; color: var(--yellow); }
-.sub { color: var(--g400); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+h1 { margin: 0; font-size: 24px; font-weight: 800; letter-spacing: -0.025em; line-height: 1.1; color: var(--yellow); }
+.sub { margin: 3px 0 0; color: var(--g400); font-size: 12px; line-height: 1.4; font-weight: 400; max-width: 62ch; }
+.bt { min-width: 0; }
 select, input[type=search] { background: var(--g900); color: var(--white); border: 1px solid var(--g600); border-radius: 10px; padding: 8px 10px; font: inherit; }
 nav { display: flex; gap: 6px; padding: 8px 10px; background: var(--g800); border-top: 1px solid var(--g900); overflow-x: auto; }
-nav button { flex: 1 0 auto; border: 0; border-radius: 12px; padding: 9px 12px; background: var(--g900); color: var(--g400); font: inherit; font-weight: 600; cursor: pointer; white-space: nowrap; }
+nav button { flex: 1 0 auto; border: 0; border-radius: 12px; padding: 9px 12px; background: var(--g900); color: var(--g400); font: inherit; font-weight: 600; letter-spacing: -0.005em; cursor: pointer; white-space: nowrap; }
 nav button.on { background: var(--yellow); color: var(--g950); }
 nav button b { background: var(--red); color: #fff; border-radius: 10px; padding: 0 6px; font-size: 11px; margin-left: 4px; }
 nav button b:empty { display: none; }
@@ -81,7 +87,7 @@ footer #age.stale { color: var(--amber); }
 .maplibregl-popup-content { background: var(--g800); color: var(--white); border-radius: 12px; padding: 12px 14px; }
 .maplibregl-popup-tip { border-top-color: var(--g800) !important; border-bottom-color: var(--g800) !important; }
 @media (max-width: 700px) { .grid.c7 { grid-template-columns: repeat(4, 1fr); } }
-@media (max-width: 560px) { .sub { display: none; } .grid.k4 { grid-template-columns: repeat(2, 1fr); } .rbar { grid-template-columns: 110px 1fr 30px; } }
+@media (max-width: 560px) { .grid.k4 { grid-template-columns: repeat(2, 1fr); } .rbar { grid-template-columns: 110px 1fr 30px; } }
 
 .hdr-r { display: flex; gap: 8px; align-items: center; }
 
