@@ -174,12 +174,28 @@ private fun levelExpr(): Expression = Expression.match(
     Expression.stop("red", Expression.color(LevelRed.toArgb())),
 )
 
+/**
+ * El estilo base dibuja también las fronteras MARÍTIMAS de países y comunidades: líneas que rodean la costa dentro del mar, separadas
+ * de ella, y que parecen capas superpuestas. Se excluyen (atributo "maritime" de OpenMapTiles) y se dejan las fronteras terrestres.
+ */
+private fun hideMaritimeBoundaries(style: Style) {
+    val notMaritime = Expression.neq(Expression.get("maritime"), Expression.literal(1))
+    for (layer in style.layers) {
+        if (layer is LineLayer && layer.id.startsWith("boundary")) {
+            val current = layer.filter
+            layer.setFilter(if (current != null) Expression.all(current, notMaritime) else notMaritime)
+        }
+    }
+}
+
 /** Modo oscuro: las etiquetas del mapa base (países, comunidades, ciudades) vienen en grises tenues; se aclaran y se les da un halo oscuro. */
 private fun brightenBaseLabels(style: Style) {
     for (layer in style.layers) {
         if (layer is SymbolLayer) {
+            // Los nombres de regiones (de España, pero también de Francia, Marruecos…) más discretos que ciudades y países
+            val soft = layer.id.startsWith("place_state")
             layer.setProperties(
-                textColor(Expression.color(Color(0xFFF1F5FB).toArgb())),
+                textColor(Expression.color(Color(if (soft) 0xFFA9B6D0 else 0xFFF1F5FB).toArgb())),
                 textHaloColor(Expression.color(Color(0xFF1B2235).toArgb())),
                 textHaloWidth(1.6f),
             )
@@ -533,6 +549,7 @@ private fun MapContainer(
         appliedDark = dark
         onMap(m, false)
         m.setStyle(Style.Builder().fromUri(if (dark) STYLE_DARK else STYLE_LIGHT)) { style ->
+            hideMaritimeBoundaries(style)
             if (dark) brightenBaseLabels(style)
             addAndenLayers(style, dark)
             onMap(m, true)
