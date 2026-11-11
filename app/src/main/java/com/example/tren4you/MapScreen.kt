@@ -585,7 +585,7 @@ private fun TopBar(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("Andén", color = AndenYellow, fontSize = 20.sp, fontWeight = FontWeight.Bold)
                 Spacer(Modifier.width(8.dp))
-                Text("Retrasos e incidencias de trenes", color = Gray400, fontSize = 12.sp, modifier = Modifier.weight(1f))
+                Text("Incidencias y retrasos horarios en la red ferroviaria española", color = Gray400, fontSize = 12.sp, lineHeight = 15.sp, maxLines = 2, modifier = Modifier.weight(1f))
                 Icon(Icons.Filled.Search, "Buscar estación", tint = AndenYellow,
                     modifier = Modifier.clip(CircleShape).clickable(onClick = onSearch).padding(4.dp).size(24.dp))
             }
