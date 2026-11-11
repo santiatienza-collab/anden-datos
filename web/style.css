@@ -83,7 +83,7 @@ td.time { font-weight: 700; white-space: nowrap; } s { color: var(--g400); font-
 .note { color: var(--g400); font-size: 12px; }
 footer { padding: 8px 14px; background: var(--g800); color: var(--g600); font-size: 11px; display: flex; gap: 12px; flex-wrap: wrap; }
 footer #age { color: var(--green); font-weight: 600; font-variant-numeric: tabular-nums; }
-footer #age.stale { color: var(--amber); }
+footer #warn:not(:empty) { color: var(--amber); margin-left: 12px; }
 .maplibregl-popup-content { background: var(--g800); color: var(--white); border-radius: 12px; padding: 12px 14px; }
 .maplibregl-popup-tip { border-top-color: var(--g800) !important; border-bottom-color: var(--g800) !important; }
 @media (max-width: 700px) { .grid.c7 { grid-template-columns: repeat(4, 1fr); } }

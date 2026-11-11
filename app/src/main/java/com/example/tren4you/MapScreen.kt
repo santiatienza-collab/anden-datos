@@ -669,8 +669,8 @@ private fun LegendRow(color: Color, text: String, ring: Boolean = false) {
 }
 
 /**
- * Reloj verde con fecha y hora actuales (se actualiza cada segundo). Sustituye al cartel de "Datos de X min": solo cambia
- * a un aviso ámbar si hay un problema con los datos (sin conexión o datos antiguos).
+ * Reloj verde con fecha y hora actuales (se actualiza cada segundo), SIEMPRE visible. Si hay un problema con los datos
+ * (sin conexión o más de 20 min sin actualizarse) aparece además un aviso ámbar encima del reloj.
  */
 @Composable
 private fun StatusLine(dataTimeSec: Long?, now: Long, error: String?) {
@@ -682,22 +682,21 @@ private fun StatusLine(dataTimeSec: Long?, now: Long, error: String?) {
         stale -> "Datos antiguos (${ageLabel(age!!)})"
         else -> null
     }
-    val shape = Modifier.clip(RoundedCornerShape(50)).background(Gray900.copy(alpha = 0.88f)).padding(horizontal = 10.dp, vertical = 4.dp)
-    if (warning != null) {
-        Text(warning, color = LevelAmber, fontSize = 11.sp, modifier = shape)
-        return
-    }
+    val pill = Modifier.clip(RoundedCornerShape(50)).background(Gray900.copy(alpha = 0.88f)).padding(horizontal = 10.dp, vertical = 4.dp)
     val format = remember {
         // Hora local del dispositivo (zona horaria por defecto), sin año para que quepa junto a la leyenda
         java.text.SimpleDateFormat("EEE d MMM · HH:mm:ss", java.util.Locale("es", "ES"))
     }
-    Row(shape, verticalAlignment = Alignment.CenterVertically) {
-        LiveClock(12.dp, LevelGreen)
-        Spacer(Modifier.width(6.dp))
-        Text(
-            format.format(java.util.Date(now)), color = LevelGreen, fontSize = 11.sp, fontWeight = FontWeight.Medium,
-            style = androidx.compose.ui.text.TextStyle(fontFeatureSettings = "tnum"),
-        )
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        if (warning != null) Text(warning, color = LevelAmber, fontSize = 11.sp, fontWeight = FontWeight.Medium, modifier = pill)
+        Row(pill, verticalAlignment = Alignment.CenterVertically) {
+            LiveClock(12.dp, LevelGreen)
+            Spacer(Modifier.width(6.dp))
+            Text(
+                format.format(java.util.Date(now)), color = LevelGreen, fontSize = 11.sp, fontWeight = FontWeight.Medium,
+                style = androidx.compose.ui.text.TextStyle(fontFeatureSettings = "tnum"),
+            )
+        }
     }
 }
 

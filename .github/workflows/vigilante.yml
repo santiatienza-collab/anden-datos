@@ -1,0 +1,41 @@
+name: Vigilante de datos
+
+# Segunda red de seguridad, independiente de la cadena de data.yml: cada pocos minutos comprueba cuántos hace que se publicaron
+# los datos y, si llevan parados más de 12 min y no hay una ejecución en marcha, lanza data.yml.
+# (Los cron de GitHub no son puntuales, pero con este y el de data.yml hay varias vías para reanudar la cadena.)
+on:
+  schedule:
+    - cron: '2-57/5 * * * *'
+  workflow_dispatch:
+
+permissions:
+  actions: write
+  contents: read
+
+concurrency:
+  group: vigilante
+  cancel-in-progress: true
+
+jobs:
+  comprobar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Reanudar la cadena si los datos están parados
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          ahora=$(date +%s)
+          web="https://${GITHUB_REPOSITORY_OWNER}.github.io/${GITHUB_REPOSITORY#*/}"
+          gen=$(curl -fsS -m 20 "$web/health.json?x=$ahora" | jq -r '.now // 0' 2>/dev/null || echo 0)
+          edad=$(( ahora - gen ))
+          echo "Datos publicados hace $edad s"
+          if [ "$edad" -lt 720 ]; then echo "Datos recientes: no hace falta hacer nada."; exit 0; fi
+
+          # ¿Hay ya una ejecución en marcha (o en cola) que lleve poco tiempo? Entonces se espera.
+          activas=$(gh run list --workflow data.yml --repo "$GITHUB_REPOSITORY" --json status,createdAt --limit 10 \
+            --jq '[.[] | select(.status=="in_progress" or .status=="queued" or .status=="waiting") | select((now - (.createdAt | fromdateiso8601)) < 600)] | length')
+          if [ "$activas" -gt 0 ]; then echo "Hay $activas ejecución(es) recientes en marcha: se espera."; exit 0; fi
+
+          echo "Datos parados y sin ejecución en marcha: se lanza data.yml"
+          gh workflow run data.yml --repo "$GITHUB_REPOSITORY" --ref "${{ github.ref_name }}"

@@ -79,22 +79,18 @@ async function loadAll() {
 // ámbar si hay un problema con los datos (sin conexión o datos antiguos).
 const clockFmt = new Intl.DateTimeFormat('es-ES', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false }); // hora local del navegador
 const CLOCK_SVG = '<svg class="clk" viewBox="0 0 16 16" width="13" height="13" aria-hidden="true"><circle cx="8" cy="8" r="6.6" fill="none" stroke="currentColor" stroke-width="1.5"/><line x1="8" y1="8" x2="11.4" y2="8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><line class="mh" x1="8" y1="8" x2="8" y2="3.2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>';
-let clockMode = false;
 function tickClock() {
-  if (!clockMode) return;
   const p = Object.fromEntries(clockFmt.formatToParts(new Date()).map((x) => [x.type, x.value]));
-  $('#age').innerHTML = CLOCK_SVG + '<span class="tm">' + p.weekday.replace('.', '') + ' ' + p.day + ' ' + p.month.replace('.', '') + ' ' + p.year + ' · ' + p.hour + ':' + p.minute + ':' + p.second + '</span>';
+  $('#clock').innerHTML = CLOCK_SVG + '<span class="tm">' + p.weekday.replace('.', '') + ' ' + p.day + ' ' + p.month.replace('.', '') + ' ' + p.year + ' · ' + p.hour + ':' + p.minute + ':' + p.second + '</span>';
 }
 function renderAge() {
-  const el = $('#age');
+  // El reloj verde se muestra SIEMPRE (tickClock). Si hay un problema con los datos, además aparece un aviso ámbar a su lado.
   const age = S.generatedAt ? Math.floor(Date.now() / 1000) - S.generatedAt : null;
-  let warn = null;
-  if (age == null) warn = S.error ? 'Sin datos (' + S.error + ')' : null;
+  let warn = '';
+  if (age == null) warn = S.error ? 'Sin datos (' + S.error + ')' : '';
   else if (S.error) warn = 'Sin conexión · datos de hace ' + ageText(age);
   else if (age > 1200) warn = 'Datos antiguos (hace ' + ageText(age) + ')';
-  clockMode = !warn;
-  el.classList.toggle('stale', !!warn);
-  if (warn) el.textContent = warn; else tickClock();
+  $('#warn').textContent = warn;
 }
 
 // ---------- Mapa ----------

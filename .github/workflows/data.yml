@@ -84,4 +84,18 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           sleep 150
-          gh workflow run data.yml --repo "$GITHUB_REPOSITORY" --ref "${{ github.ref_name }}"
+          # Si GitHub no logra ARRANCAR la ejecución siguiente (startup_failure, p. ej. durante un incidente de Actions), la cadena
+          # se rompería. Se comprueba que la ejecución lanzada ha arrancado y, si no, se reintenta con esperas crecientes.
+          for intento in 1 2 3 4 5 6; do
+            if gh workflow run data.yml --repo "$GITHUB_REPOSITORY" --ref "${{ github.ref_name }}"; then
+              sleep 25
+              estado=$(gh run list --workflow data.yml --repo "$GITHUB_REPOSITORY" --limit 1 --json status,conclusion --jq '.[0].conclusion // .[0].status')
+              echo "Intento $intento: estado de la ejecución lanzada = $estado"
+              [ "$estado" != "startup_failure" ] && exit 0
+            else
+              echo "Intento $intento: no se pudo lanzar la ejecución"
+            fi
+            sleep $((intento * 45))
+          done
+          echo "::error::No se pudo continuar la cadena; la reanudará el vigilante o el cron"
+          exit 1
