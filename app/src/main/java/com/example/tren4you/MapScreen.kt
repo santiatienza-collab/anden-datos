@@ -433,13 +433,13 @@ fun MapScreen(
         if (wanted.isEmpty()) return@LaunchedEffect
         highlighted = wanted.map { it.id }
         station = null; selectedId = null
-        openSignal = wanted.singleOrNull()
+        openSignal = null // la ficha solo al tocar el tramo: si se abriera sola taparía parte del mapa encuadrado
         val bounds = CriticalMap.bounds(wanted)
         val one = CriticalMap.singlePoint(wanted)
         with(density) {
             val h = m.height.toFloat().coerceAtLeast(1f)
             val top = minOf(215.dp.roundToPx().toFloat(), h * 0.36f).toInt()
-            val bottom = minOf(150.dp.roundToPx().toFloat(), h * 0.30f).toInt()
+            val bottom = minOf(110.dp.roundToPx().toFloat(), h * 0.20f).toInt()
             if (bounds != null) m.animateCamera(CameraUpdateFactory.newLatLngBounds(bounds, 40.dp.roundToPx(), top, 40.dp.roundToPx(), bottom), 900)
             else if (one != null) m.animateCamera(CameraUpdateFactory.newLatLngZoom(one, 11.5), 900)
         }
