@@ -513,11 +513,13 @@ fun MapScreen(
             )
             Spacer(Modifier.height(8.dp))
             RegionRow(regions, region, onPick = { onRegion(it); station = null; selectedId = null })
-            Spacer(Modifier.weight(1f))
-            if (shownSignals.isNotEmpty() && selected == null && station == null && openSignal == null) {
-                CriticalChip(shownSignals.size, highlighted.isNotEmpty(), onClear = { highlighted = emptyList() })
+            if (shownSignals.isNotEmpty()) {
                 Spacer(Modifier.height(6.dp))
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                    CriticalChip(shownSignals.size, highlighted.isNotEmpty(), onClear = { highlighted = emptyList() })
+                }
             }
+            Spacer(Modifier.weight(1f))
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Bottom) {
                 StatusLine(dataTimeSec, now, error)
                 Spacer(Modifier.weight(1f))
@@ -790,20 +792,21 @@ private fun TrainCard(t: Train, onClose: () -> Unit) {
 /** Indicador de que hay alertas críticas iluminadas en el mapa; con una ✕ para quitar el resaltado si se pidió ver alguna. */
 @Composable
 private fun CriticalChip(count: Int, highlighted: Boolean, onClear: () -> Unit) {
-    val a = pulse(0.4f, 1f, 650)
+    val a = pulse(0.45f, 1f, 800)
+    val shape = RoundedCornerShape(50)
     Row(
-        Modifier.clip(RoundedCornerShape(50)).background(Gray950.copy(alpha = 0.94f))
-            .border(BorderStroke(1.5.dp, LevelRed.copy(alpha = a)), RoundedCornerShape(50)).padding(horizontal = 12.dp, vertical = 6.dp),
+        Modifier.clip(shape).background(Gray950.copy(alpha = 0.82f))
+            .border(BorderStroke(1.dp, LevelRed.copy(alpha = 0.35f + 0.4f * a)), shape)
+            .padding(start = 9.dp, end = if (highlighted) 4.dp else 10.dp, top = 3.dp, bottom = 3.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Box(Modifier.size(9.dp).clip(CircleShape).background(LevelRed.copy(alpha = a)))
-        Spacer(Modifier.width(8.dp))
+        Box(Modifier.size(7.dp).clip(CircleShape).background(LevelRed.copy(alpha = a)))
+        Spacer(Modifier.width(6.dp))
         Text(
-            if (highlighted) (if (count == 1) "Alerta resaltada" else "$count alertas resaltadas")
-            else (if (count == 1) "1 alerta crítica en el mapa" else "$count alertas críticas en el mapa"),
-            color = AndenWhite, fontSize = 12.sp, fontWeight = FontWeight.Bold,
+            if (count == 1) "1 alerta crítica" else "$count alertas críticas",
+            color = AndenWhite.copy(alpha = 0.92f), fontSize = 11.sp, fontWeight = FontWeight.Medium,
         )
-        if (highlighted) Text("✕", color = Gray400, fontSize = 15.sp, modifier = Modifier.clickable(onClick = onClear).padding(start = 10.dp))
+        if (highlighted) Text("✕", color = Gray400, fontSize = 12.sp, modifier = Modifier.clip(CircleShape).clickable(onClick = onClear).padding(horizontal = 6.dp, vertical = 1.dp))
     }
 }
 
