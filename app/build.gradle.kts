@@ -5,7 +5,7 @@ plugins {
 }
 
 android {
-    namespace = "com.example.tren4you"
+    namespace = "com.anden.miapp"
     compileSdk {
         version = release(37)
     }

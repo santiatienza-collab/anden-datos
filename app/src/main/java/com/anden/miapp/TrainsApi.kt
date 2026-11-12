@@ -1,0 +1,106 @@
+package com.anden.miapp
+
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import org.json.JSONObject
+import java.net.HttpURLConnection
+import java.net.URL
+
+class HttpStatusException(val code: Int) : Exception("HTTP $code")
+
+/** Trenes con su posición y la hora (segundos epoch) a la que se generó la instantánea de datos. */
+data class TrainsData(val trains: List<Train>, val generatedAt: Long)
+
+/**
+ * Cliente de la API estática publicada en GitHub Pages (HTTPS). No hay servidor propio: un flujo de
+ * GitHub Actions regenera los ficheros JSON cada pocos minutos.
+ */
+object TrainsApi {
+    private val base = BuildConfig.BACKEND_URL.trim().trimEnd('/')
+
+    /** Última respuesta de cada fichero con su ETag: si no ha cambiado, el servidor contesta 304 sin enviar nada. */
+    private class Cached(val etag: String, val body: String)
+    private val cache = java.util.concurrent.ConcurrentHashMap<String, Cached>()
+
+    /** Pide el fichero; ante un fallo puntual (p. ej. Pages redesplegándose) reintenta una vez antes de dar error. */
+    private suspend fun get(path: String): JSONObject {
+        try {
+            return fetch(path)
+        } catch (e: Exception) {
+            kotlinx.coroutines.delay(1_500)
+            return fetch(path)
+        }
+    }
+
+    private suspend fun fetch(path: String): JSONObject = withContext(Dispatchers.IO) {
+        // GitHub Pages guarda los ficheros en caché hasta 10 min; un parámetro distinto cada 30 s fuerza a pedir el más reciente.
+        val conn = URL("$base$path?v=${System.currentTimeMillis() / 30_000}").openConnection() as HttpURLConnection
+        try {
+            conn.connectTimeout = 10_000
+            conn.readTimeout = 20_000
+            conn.setRequestProperty("Accept", "application/json")
+            val known = cache[path]
+            if (known != null) conn.setRequestProperty("If-None-Match", known.etag)
+            val code = conn.responseCode
+            if (code == 304 && known != null) return@withContext JSONObject(known.body)
+            if (code != 200) throw HttpStatusException(code)
+            val body = conn.inputStream.bufferedReader().readText()
+            conn.getHeaderField("ETag")?.let { cache[path] = Cached(it, body) }
+            JSONObject(body)
+        } finally {
+            conn.disconnect()
+        }
+    }
+
+    /** Trenes con posición y color de semáforo. Lanza excepción si falla. */
+    suspend fun trains(): TrainsData {
+        val o = get("/api/v1/trains.json")
+        val arr = o.getJSONArray("trains")
+        return TrainsData((0 until arr.length()).mapNotNull { Train.fromJson(arr.getJSONObject(it)) }, o.optLong("generatedAt"))
+    }
+
+    /** Todas las estaciones, con marca de avisos activos. */
+    suspend fun stations(): List<Station> = parseStations(get("/api/v1/stops.json").getJSONArray("stops"))
+
+    /**
+     * Salidas y llegadas de una estación. Solo se publican tableros de estaciones con servicio: si no
+     * hay fichero (404) se devuelve un tablero vacío en lugar de un error.
+     */
+    suspend fun board(station: Station): StationBoard = try {
+        parseBoard(get("/api/v1/stations/${station.key}/board.json"))
+    } catch (e: HttpStatusException) {
+        if (e.code != 404) throw e
+        StationBoard(station, true, AccessibilitySummary(false, 0, 0, 0), emptyList(), emptyList(), emptyList())
+    }
+
+    /** Señales de seguridad calculadas por el servidor (tren detenido, aproximación, avisos de vía/señalización…). */
+    suspend fun safety(): SafetyData = parseSafety(get("/api/v1/safety.json"))
+
+    suspend fun alerts(): List<AlertItem> = parseAlerts(get("/api/v1/alerts.json").getJSONArray("alerts"))
+
+    /** Estado de las fuentes de datos (de la última instantánea). */
+    suspend fun sources(): SourcesInfo {
+        val o = get("/health.json")
+        val generated = o.optLong("now")
+        // La antigüedad que publica cada fuente es la del momento de generar el fichero: se suma el tiempo transcurrido desde entonces.
+        val sinceSnapshot = (System.currentTimeMillis() / 1000 - generated).coerceAtLeast(0)
+        val src = o.getJSONObject("sources")
+        val list = src.keys().asSequence().map { k ->
+            val x = src.getJSONObject(k)
+            SourceStatus(k, !x.has("lastError") || x.isNull("lastError"), if (x.isNull("feedAgeSec")) null else x.optLong("feedAgeSec") + sinceSnapshot, x.optString("lastError").ifEmpty { null })
+        }.toList().sortedBy { it.id }
+        return SourcesInfo(sinceSnapshot, list)
+    }
+
+    /** Contornos de las comunidades (GeoJSON en bruto) para dibujarlas y tocarlas en el mapa. */
+    suspend fun regionsGeo(): String = get("/api/v1/regions/geo.json").toString()
+
+    suspend fun regions(): List<Region> {
+        val arr = get("/api/v1/regions.json").getJSONArray("regions")
+        return (0 until arr.length()).map {
+            val o = arr.getJSONObject(it)
+            val b = o.getJSONArray("bbox")
+            Region(o.getString("id"), o.getString("name"), b.getDouble(0), b.getDouble(1), b.getDouble(2), b.getDouble(3))
+        }
+    }
+}

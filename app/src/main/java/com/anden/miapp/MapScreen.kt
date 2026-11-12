@@ -1,0 +1,836 @@
+package com.anden.miapp
+
+import android.content.Context
+import android.graphics.RectF
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Place
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Train
+import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material3.Icon
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.viewinterop.AndroidView
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import com.anden.miapp.ui.theme.AndenWhite
+import com.anden.miapp.ui.theme.AndenYellow
+import com.anden.miapp.ui.theme.Gray400
+import com.anden.miapp.ui.theme.Gray600
+import com.anden.miapp.ui.theme.Gray800
+import com.anden.miapp.ui.theme.Gray900
+import com.anden.miapp.ui.theme.Gray950
+import com.anden.miapp.ui.theme.LevelAmber
+import com.anden.miapp.ui.theme.LevelGray
+import com.anden.miapp.ui.theme.LevelGreen
+import com.anden.miapp.ui.theme.LevelRed
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.withContext
+import org.json.JSONArray
+import org.json.JSONObject
+import org.maplibre.android.MapLibre
+import org.maplibre.android.camera.CameraUpdateFactory
+import org.maplibre.android.geometry.LatLng
+import org.maplibre.android.geometry.LatLngBounds
+import org.maplibre.android.maps.MapLibreMap
+import org.maplibre.android.maps.MapView
+import org.maplibre.android.maps.Style
+import org.maplibre.android.style.expressions.Expression
+import org.maplibre.android.style.layers.CircleLayer
+import org.maplibre.android.style.layers.FillLayer
+import org.maplibre.android.style.layers.LineLayer
+import org.maplibre.android.style.layers.PropertyFactory.fillColor
+import org.maplibre.android.style.layers.PropertyFactory.fillOpacity
+import org.maplibre.android.style.layers.PropertyFactory.lineColor
+import org.maplibre.android.style.layers.PropertyFactory.lineWidth
+import org.maplibre.android.style.layers.Property
+import org.maplibre.android.style.layers.PropertyFactory.circleColor
+import org.maplibre.android.style.layers.PropertyFactory.circleRadius
+import org.maplibre.android.style.layers.PropertyFactory.circleStrokeColor
+import org.maplibre.android.style.layers.PropertyFactory.circleStrokeWidth
+import org.maplibre.android.style.layers.PropertyFactory.textAnchor
+import org.maplibre.android.style.layers.PropertyFactory.visibility
+import org.maplibre.android.style.layers.PropertyFactory.textColor
+import org.maplibre.android.style.layers.PropertyFactory.textField
+import org.maplibre.android.style.layers.PropertyFactory.textFont
+import org.maplibre.android.style.layers.PropertyFactory.textHaloColor
+import org.maplibre.android.style.layers.PropertyFactory.textHaloWidth
+import org.maplibre.android.style.layers.PropertyFactory.textOffset
+import org.maplibre.android.style.layers.PropertyFactory.textOptional
+import org.maplibre.android.style.layers.PropertyFactory.textSize
+import org.maplibre.android.style.layers.SymbolLayer
+import org.maplibre.android.style.sources.GeoJsonSource
+
+private const val SRC = "trains"
+private const val LAYER = "trains-layer"
+private const val ST_SRC = "stations"
+private const val ST_LAYER = "stations-layer"
+private const val ST_LABELS = "stations-labels"
+private const val AL_LAYER = "stations-alerts"
+private const val RG_SRC = "regions"
+private const val RG_FILL = "regions-fill"
+private const val RG_LINE = "regions-line"
+
+// Mapa base: datos de OpenStreetMap servidos por OpenFreeMap (vectorial, gratuito, sin clave).
+// Atribución obligatoria: OpenFreeMap, OpenMapTiles y colaboradores de OSM (la muestra el botón (i)).
+// Para producción conviene autoalojar las teselas.
+private const val STYLE_LIGHT = "https://tiles.openfreemap.org/styles/positron"
+// "fiord" (azul pizarra, etiquetas claras) en lugar de "dark" (casi negro, etiquetas grises): mucho más contraste.
+private const val STYLE_DARK = "https://tiles.openfreemap.org/styles/fiord"
+
+// Encuadre inicial: España peninsular y Baleares (Canarias, Ceuta y Melilla se ven al elegirlas).
+private val SPAIN = Region("espana", "España", -9.6, 35.9, 4.6, 43.9)
+
+fun Level.color(): Color = when (this) {
+    Level.Green -> LevelGreen
+    Level.Amber -> LevelAmber
+    Level.Red -> LevelRed
+    Level.Gray -> LevelGray
+}
+
+private fun levelLabel(l: Level) = when (l) {
+    Level.Green -> "Puntual"
+    Level.Amber -> "Retraso"
+    Level.Red -> "Retraso grave"
+    Level.Gray -> "Sin datos"
+}
+
+private fun trainsGeoJson(trains: List<Train>): String {
+    val features = JSONArray()
+    for (t in trains) features.put(
+        JSONObject()
+            .put("type", "Feature")
+            .put("geometry", JSONObject().put("type", "Point").put("coordinates", JSONArray().put(t.lon).put(t.lat)))
+            .put("properties", JSONObject().put("id", t.id).put("level", t.level.key).put("est", t.estimated))
+    )
+    return JSONObject().put("type", "FeatureCollection").put("features", features).toString()
+}
+
+private fun stationsGeoJson(stations: List<Station>): String {
+    val features = JSONArray()
+    for (s in stations) features.put(
+        JSONObject()
+            .put("type", "Feature")
+            .put("geometry", JSONObject().put("type", "Point").put("coordinates", JSONArray().put(s.lon).put(s.lat)))
+            .put(
+                "properties",
+                JSONObject().put("id", s.id).put("name", s.name)
+                    .put("flag", if (s.accessibilityIssue) "access" else if (s.alerts > 0) "alert" else "ok"),
+            )
+    )
+    return JSONObject().put("type", "FeatureCollection").put("features", features).toString()
+}
+
+private fun levelExpr(): Expression = Expression.match(
+    Expression.get("level"), Expression.color(LevelGray.toArgb()),
+    Expression.stop("green", Expression.color(LevelGreen.toArgb())),
+    Expression.stop("amber", Expression.color(LevelAmber.toArgb())),
+    Expression.stop("red", Expression.color(LevelRed.toArgb())),
+)
+
+/**
+ * El estilo base dibuja también las fronteras MARÍTIMAS de países y comunidades: líneas que rodean la costa dentro del mar, separadas
+ * de ella, y que parecen capas superpuestas. Se excluyen (atributo "maritime" de OpenMapTiles) y se dejan las fronteras terrestres.
+ */
+private fun hideMaritimeBoundaries(style: Style) {
+    val notMaritime = Expression.neq(Expression.get("maritime"), Expression.literal(1))
+    for (layer in style.layers) {
+        if (layer is LineLayer && layer.id.startsWith("boundary")) {
+            val current = layer.filter
+            layer.setFilter(if (current != null) Expression.all(current, notMaritime) else notMaritime)
+        }
+    }
+}
+
+/**
+ * Los estilos piden el nombre en inglés (name_en). Los datos del mapa traen también el castellano (name:es). Se descarga el estilo
+ * y se cambia el texto ANTES de dárselo al mapa (leer expresiones desde la librería nativa la hace cerrarse): primero name:es y,
+ * si un lugar no lo tiene, el inglés y luego el nombre local. Si falla la descarga, se usa el estilo original.
+ */
+private suspend fun spanishStyleJson(url: String): String? = withContext(Dispatchers.IO) {
+    runCatching {
+        val conn = java.net.URL(url).openConnection() as java.net.HttpURLConnection
+        conn.connectTimeout = 8_000
+        conn.readTimeout = 10_000
+        try {
+            if (conn.responseCode != 200) return@runCatching null
+            val text = conn.inputStream.bufferedReader().readText()
+            val get = Regex("""\[\s*"get"\s*,\s*"(name_en|name:latin)"\s*]""")
+            get.replace(text) { m -> """["coalesce",["get","name:es"],["get","${m.groupValues[1]}"]]""" }
+        } finally {
+            conn.disconnect()
+        }
+    }.getOrNull()
+}
+
+/** Modo oscuro: las etiquetas del mapa base (países, comunidades, ciudades) vienen en grises tenues; se aclaran y se les da un halo oscuro. */
+private fun brightenBaseLabels(style: Style) {
+    for (layer in style.layers) {
+        if (layer is SymbolLayer) {
+            // Los nombres de regiones (de España, pero también de Francia, Marruecos…) más discretos que ciudades y países
+            val soft = layer.id.startsWith("place_state")
+            layer.setProperties(
+                textColor(Expression.color(Color(if (soft) 0xFFA9B6D0 else 0xFFF1F5FB).toArgb())),
+                textHaloColor(Expression.color(Color(0xFF1B2235).toArgb())),
+                textHaloWidth(1.6f),
+            )
+        }
+    }
+}
+
+/** Colores de las capas propias según el mapa base (claro u oscuro). */
+private class Palette(dark: Boolean) {
+    val trainStroke = if (dark) AndenWhite else Gray900
+    val stationFill = if (dark) Color(0xFFF2F4F8) else Color.White
+    val stationStroke = if (dark) Color(0xFF1B2235) else Gray600
+    val stationAlert = if (dark) AndenYellow else Color(0xFFD99A00)
+    val label = if (dark) AndenWhite else Gray900
+    val labelHalo = if (dark) Color(0xFF1B2235) else Color.White
+    val regionLine = if (dark) Color(0xFFD7E1F2) else Gray600
+    val regionAccent = if (dark) AndenYellow else Color(0xFFD99A00)
+}
+
+/** Resalta la comunidad elegida: contorno grueso y relleno suave; el resto, contorno fino. */
+private fun highlightRegion(style: Style, selectedId: String?, dark: Boolean) {
+    val c = Palette(dark)
+    val sel = selectedId ?: "-"
+    style.getLayerAs<FillLayer>(RG_FILL)?.setProperties(
+        fillOpacity(Expression.match(Expression.get("id"), Expression.literal(0.01f), Expression.stop(sel, Expression.literal(0.1f)))),
+    )
+    style.getLayerAs<LineLayer>(RG_LINE)?.setProperties(
+        lineColor(Expression.match(Expression.get("id"), Expression.color(c.regionLine.toArgb()), Expression.stop(sel, Expression.color(c.regionAccent.toArgb())))),
+        lineWidth(Expression.match(Expression.get("id"), Expression.literal(1f), Expression.stop(sel, Expression.literal(3f)))),
+    )
+}
+
+/** Añade las capas de estaciones y trenes sobre el estilo base ya cargado. */
+private fun addAndenLayers(style: Style, dark: Boolean) {
+    val c = Palette(dark)
+    // Comunidades autónomas: relleno casi invisible (para poder tocarlas) y contorno fino.
+    style.addSource(GeoJsonSource(RG_SRC, "{\"type\":\"FeatureCollection\",\"features\":[]}"))
+    style.addLayer(FillLayer(RG_FILL, RG_SRC).withProperties(fillColor(Expression.color(c.regionAccent.toArgb())), fillOpacity(0.01f)))
+    style.addLayer(LineLayer(RG_LINE, RG_SRC).withProperties(lineColor(Expression.color(c.regionLine.toArgb())), lineWidth(1f)))
+    style.addSource(GeoJsonSource(ST_SRC, stationsGeoJson(emptyList())))
+    // Estaciones debajo de los trenes. Con aviso: borde amarillo; con aviso de accesibilidad: más grueso.
+    style.addLayer(
+        CircleLayer(ST_LAYER, ST_SRC).withProperties(
+            circleColor(Expression.color(c.stationFill.toArgb())),
+            circleRadius(
+                Expression.interpolate(
+                    Expression.linear(), Expression.zoom(),
+                    Expression.stop(6, 2.5f), Expression.stop(10, 5f), Expression.stop(13, 8f),
+                )
+            ),
+            circleStrokeColor(
+                Expression.match(
+                    Expression.get("flag"), Expression.color(c.stationStroke.toArgb()),
+                    Expression.stop("alert", Expression.color(c.stationAlert.toArgb())),
+                    Expression.stop("access", Expression.color(c.stationAlert.toArgb())),
+                )
+            ),
+            circleStrokeWidth(
+                Expression.match(
+                    Expression.get("flag"), Expression.literal(1.2f),
+                    Expression.stop("alert", Expression.literal(2f)),
+                    Expression.stop("access", Expression.literal(3f)),
+                )
+            ),
+        ).also { it.minZoom = 6f }
+    )
+    style.addLayer(
+        SymbolLayer(ST_LABELS, ST_SRC).withProperties(
+            textField(Expression.get("name")),
+            textFont(arrayOf("Noto Sans Regular")),
+            textSize(11f),
+            textColor(Expression.color(c.label.toArgb())),
+            textHaloColor(Expression.color(c.labelHalo.toArgb())),
+            textHaloWidth(1.4f),
+            textOffset(arrayOf(0f, 1.2f)),
+            textAnchor(Property.TEXT_ANCHOR_TOP),
+            textOptional(true),
+        ).also { it.minZoom = 10.5f }
+    )
+    // Estaciones con avisos activos: se ven desde el zoom nacional (círculo amarillo con borde oscuro)
+    style.addLayer(
+        CircleLayer(AL_LAYER, ST_SRC).withProperties(
+            circleColor(Expression.color(c.stationAlert.toArgb())),
+            circleRadius(
+                Expression.interpolate(
+                    Expression.linear(), Expression.zoom(),
+                    Expression.stop(4, 4f), Expression.stop(8, 6f), Expression.stop(13, 9f),
+                )
+            ),
+            circleStrokeColor(Expression.color(Gray900.toArgb())),
+            circleStrokeWidth(1.6f),
+        ).also { it.setFilter(Expression.neq(Expression.get("flag"), Expression.literal("ok"))) }
+    )
+    style.addSource(GeoJsonSource(SRC, trainsGeoJson(emptyList())))
+    style.addLayer(
+        CircleLayer(LAYER, SRC).withProperties(
+            // Los trenes estimados por horario se dibujan como anillos blancos: no son un dato en tiempo real.
+            circleColor(Expression.switchCase(Expression.eq(Expression.get("est"), Expression.literal(true)), Expression.color(Color.White.toArgb()), levelExpr())),
+            circleRadius(
+                Expression.interpolate(
+                    Expression.linear(), Expression.zoom(),
+                    Expression.stop(4, 3.5f), Expression.stop(8, 6f), Expression.stop(12, 9f),
+                )
+            ),
+            circleStrokeColor(Expression.switchCase(Expression.eq(Expression.get("est"), Expression.literal(true)), Expression.color(Gray600.toArgb()), Expression.color(c.trainStroke.toArgb()))),
+            circleStrokeWidth(Expression.switchCase(Expression.eq(Expression.get("est"), Expression.literal(true)), Expression.literal(2.4f), Expression.literal(1.4f))),
+        )
+    )
+    CriticalMap.addLayers(style, LAYER)
+}
+
+/**
+ * Pantalla de inicio de Andén: mapa con la leyenda y los filtros arriba (qué significa cada color, comunidad y capas
+ * Trenes / Estaciones / Avisos) y, abajo, una lista con el detalle de los retrasos que ocupa un tercio de la pantalla.
+ */
+@Composable
+fun MapScreen(
+    regions: List<Region>,
+    region: Region?, // null = toda España
+    onRegion: (Region?) -> Unit,
+    stations: List<Station>,
+    trains: List<Train>,
+    dataTimeSec: Long?,
+    error: String?,
+    pendingStation: Station?,
+    pendingTrain: Train?,
+    onPendingHandled: () -> Unit,
+    dark: Boolean,
+    signals: List<SafetySignal> = emptyList(),
+    focus: FocusRequest? = null,
+    mapActive: Boolean = true,
+) {
+    val context = LocalContext.current
+    val density = LocalDensity.current
+
+    var filter by remember { mutableStateOf<Level?>(null) }
+    var selectedId by remember { mutableStateOf<String?>(null) }
+    var station by remember { mutableStateOf<Station?>(null) }
+    var arrivals by remember { mutableStateOf(false) }
+    var board by remember { mutableStateOf<StationBoard?>(null) }
+    var boardError by remember { mutableStateOf<String?>(null) }
+    var searching by remember { mutableStateOf(false) }
+    var map by remember { mutableStateOf<MapLibreMap?>(null) }
+    var styleReady by remember { mutableStateOf(false) }
+    var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
+
+    LaunchedEffect(Unit) { while (true) { now = System.currentTimeMillis(); delay(1_000) } }
+
+    // Tablero de la estación abierta: al abrirla y cada 30 s.
+    LaunchedEffect(station?.id) {
+        val st = station ?: return@LaunchedEffect
+        board = null
+        boardError = null
+        while (true) {
+            runCatching { TrainsApi.board(st) }
+                .onSuccess { board = it; boardError = null }
+                .onFailure { boardError = it.message ?: "sin conexión" }
+            delay(REFRESH_MS)
+        }
+    }
+
+    val inRegion = remember(trains, region) { if (region == null) trains else trains.filter { it.region == region?.id } }
+    val visible = remember(inRegion, filter) { if (filter == null) inRegion else inRegion.filter { it.level == filter } }
+    val visibleStations = remember(stations, region) { if (region == null) stations else stations.filter { it.region == region?.id } }
+    val selected = remember(trains, selectedId) { trains.firstOrNull { it.id == selectedId } }
+
+    // Contornos de las comunidades: se descargan una vez (se reintenta hasta lograrlo).
+    var regionsGeo by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(Unit) {
+        while (regionsGeo == null) {
+            runCatching { TrainsApi.regionsGeo() }.onSuccess { regionsGeo = it }
+            if (regionsGeo == null) delay(5_000)
+        }
+    }
+    LaunchedEffect(regionsGeo, styleReady) {
+        val g = regionsGeo ?: return@LaunchedEffect
+        if (styleReady) map?.style?.getSourceAs<GeoJsonSource>(RG_SRC)?.setGeoJson(g)
+    }
+    LaunchedEffect(region, regionsGeo, styleReady, dark) {
+        if (styleReady) map?.style?.let { highlightRegion(it, region?.id, dark) }
+    }
+
+    // Empuja datos al mapa (también tras cambiar de estilo, cuando styleReady vuelve a true).
+    LaunchedEffect(visible, styleReady) {
+        if (styleReady) map?.style?.getSourceAs<GeoJsonSource>(SRC)?.setGeoJson(trainsGeoJson(visible))
+    }
+    LaunchedEffect(visibleStations, styleReady) {
+        if (styleReady) map?.style?.getSourceAs<GeoJsonSource>(ST_SRC)?.setGeoJson(stationsGeoJson(visibleStations))
+    }
+    // Alertas críticas en neón: siempre las críticas y, además, las que se hayan pedido ver.
+    var highlighted by remember { mutableStateOf<List<String>>(emptyList()) }
+    var openSignal by remember { mutableStateOf<SafetySignal?>(null) }
+    val shownSignals = remember(signals, highlighted) { signals.filter { it.level == "critical" || it.id in highlighted } }
+    LaunchedEffect(shownSignals, highlighted, styleReady) {
+        if (styleReady) map?.style?.getSourceAs<GeoJsonSource>(CriticalMap.SRC)?.setGeoJson(CriticalMap.geoJson(shownSignals, highlighted.toSet()))
+    }
+    // Parpadeo del halo (solo con el mapa a la vista y algo que iluminar)
+    LaunchedEffect(styleReady, mapActive, shownSignals.isNotEmpty()) {
+        if (!styleReady || !mapActive || shownSignals.isEmpty()) return@LaunchedEffect
+        while (true) {
+            map?.style?.let { CriticalMap.pulse(it, CriticalMap.pulseValue(System.currentTimeMillis())) }
+            delay(80)
+        }
+    }
+    // "Ver en el mapa": encuadra todas las alertas pedidas (tramos y puntos) y las resalta
+    var chipFocus by remember { mutableStateOf<FocusRequest?>(null) } // toque en la píldora de alertas críticas
+    LaunchedEffect(focus, chipFocus, map, styleReady, signals) {
+        val req = listOfNotNull(focus, chipFocus).maxByOrNull { it.nonce } ?: return@LaunchedEffect
+        val m = map ?: return@LaunchedEffect
+        if (!styleReady) return@LaunchedEffect
+        val wanted = signals.filter { it.id in req.ids }
+        if (wanted.isEmpty()) return@LaunchedEffect
+        highlighted = wanted.map { it.id }
+        station = null; selectedId = null
+        // Con una comunidad filtrada, las alertas de fuera quedarían ocultas: se vuelve a toda España y se espera a que termine ese encuadre
+        if (region != null) { onRegion(null); delay(800) }
+        openSignal = null // la ficha solo al tocar el tramo: si se abriera sola taparía parte del mapa encuadrado
+        val bounds = CriticalMap.bounds(wanted)
+        val one = CriticalMap.singlePoint(wanted)
+        with(density) {
+            val h = m.height.toFloat().coerceAtLeast(1f)
+            val top = minOf(215.dp.roundToPx().toFloat(), h * 0.36f).toInt()
+            val bottom = minOf(110.dp.roundToPx().toFloat(), h * 0.20f).toInt()
+            if (bounds != null) m.animateCamera(CameraUpdateFactory.newLatLngBounds(bounds, 40.dp.roundToPx(), top, 40.dp.roundToPx(), bottom), 900)
+            else if (one != null) m.animateCamera(CameraUpdateFactory.newLatLngZoom(one, 11.5), 900)
+        }
+        onPendingHandled()
+    }
+    // Encuadre: toda España al inicio; al elegir comunidad, se ajusta a ella. Deja libre la cabecera.
+    var framed by remember { mutableStateOf(false) }
+    LaunchedEffect(region, styleReady) {
+        val m = map ?: return@LaunchedEffect
+        if (!styleReady) return@LaunchedEffect
+        val r = region ?: SPAIN
+        // Mínimo de ~0,5° para que Ceuta/Melilla no queden con un zoom absurdo.
+        val padLon = maxOf(0.0, (0.5 - (r.east - r.west)) / 2)
+        val padLat = maxOf(0.0, (0.5 - (r.north - r.south)) / 2)
+        val bounds = LatLngBounds.Builder()
+            .include(LatLng(r.south - padLat, r.west - padLon))
+            .include(LatLng(r.north + padLat, r.east + padLon))
+            .build()
+        if (!framed) delay(300) // la primera vez, esperar a que el mapa tenga su tamaño definitivo
+        with(density) {
+            val h = m.height.toFloat().coerceAtLeast(1f)
+            val top = minOf(215.dp.roundToPx().toFloat(), h * 0.36f).toInt()
+            val bottom = minOf(80.dp.roundToPx().toFloat(), h * 0.20f).toInt()
+            val upd = CameraUpdateFactory.newLatLngBounds(bounds, 24.dp.roundToPx(), top, 24.dp.roundToPx(), bottom)
+            if (framed) m.animateCamera(upd, 700) else { m.moveCamera(upd); framed = true }
+        }
+    }
+
+    fun openStation(s: Station, fly: Boolean) {
+        selectedId = null
+        arrivals = false
+        station = s
+        if (fly) map?.animateCamera(CameraUpdateFactory.newLatLngZoom(LatLng(s.lat, s.lon), 12.5), 700)
+    }
+
+    fun openTrain(t: Train) {
+        station = null
+        selectedId = t.id
+        map?.animateCamera(CameraUpdateFactory.newLatLngZoom(LatLng(t.lat, t.lon), 9.5), 700)
+    }
+
+    LaunchedEffect(pendingStation, pendingTrain, map) {
+        if (map == null) return@LaunchedEffect
+        val st = pendingStation
+        val tr = pendingTrain
+        if (st != null) { openStation(st, true); onPendingHandled() }
+        else if (tr != null) { openTrain(tr); onPendingHandled() }
+    }
+
+    Box(Modifier.fillMaxSize().background(if (dark) Gray900 else Color(0xFFE8E8EA))) {
+        MapContainer(
+            context, dark,
+            onMap = { m, ready -> map = m; styleReady = ready },
+            onTap = { trainHit, stationHit, regionHit, critHit ->
+                when {
+                    trainHit != null -> { selectedId = trainHit; station = null; openSignal = null }
+                    critHit != null -> signals.firstOrNull { it.id == critHit }?.let { openSignal = it; selectedId = null; station = null }
+                    stationHit != null -> stations.firstOrNull { it.id == stationHit }?.let { openStation(it, false) }
+                    // Un toque en vacío cierra primero lo abierto; si no había nada, elige la comunidad tocada.
+                    selectedId != null || station != null || openSignal != null -> { selectedId = null; station = null; openSignal = null }
+                    regionHit != null -> regions.firstOrNull { it.id == regionHit }?.let { onRegion(it) }
+                }
+            },
+        )
+
+        Column(Modifier.fillMaxSize().statusBarsPadding().padding(12.dp)) {
+            TopBar(
+                inRegion, filter,
+                onFilter = { filter = if (filter == it) null else it },
+                onSearch = { searching = true },
+            )
+            Spacer(Modifier.height(8.dp))
+            RegionRow(regions, region, onPick = { onRegion(it); station = null; selectedId = null })
+            // Píldora fija: solo desaparece cuando ya no hay alertas críticas. Al tocarla, el mapa encuadra los tramos afectados.
+            val criticalNow = signals.filter { it.level == "critical" }
+            if (criticalNow.isNotEmpty()) {
+                Spacer(Modifier.height(6.dp))
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                    CriticalChip(criticalNow.size, onClick = { chipFocus = FocusRequest(criticalNow.map { it.id }, System.nanoTime()) })
+                }
+            }
+            Spacer(Modifier.weight(1f))
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Bottom) {
+                StatusLine(dataTimeSec, now, error)
+                Spacer(Modifier.weight(1f))
+                // La leyenda se oculta mientras hay una ficha abierta, para no taparla
+                if (selected == null && station == null && openSignal == null) MapLegend()
+            }
+            Spacer(Modifier.height(8.dp))
+            when {
+                openSignal != null -> openSignal?.let { sg -> SignalCardOnMap(sg, onClose = { openSignal = null }) }
+                selected != null -> TrainCard(selected, onClose = { selectedId = null })
+                station != null -> station?.let { st ->
+                    StationSheet(
+                        board = board?.takeIf { it.station.id == st.id }, stationName = st.name, station = st, arrivals = arrivals,
+                        nowSec = now / 1000, error = boardError, onToggle = { arrivals = it }, onClose = { station = null },
+                    )
+                }
+                else -> {}
+            }
+        }
+
+        if (searching) SearchOverlay(stations, onClose = { searching = false }, onPick = { s -> searching = false; openStation(s, true) })
+    }
+}
+
+@Composable
+private fun SearchOverlay(stations: List<Station>, onClose: () -> Unit, onPick: (Station) -> Unit) {
+    var q by remember { mutableStateOf("") }
+    val results = remember(q, stations) { searchStations(stations, q) }
+    val focus = remember { FocusRequester() }
+    LaunchedEffect(Unit) { focus.requestFocus() }
+    Column(Modifier.fillMaxSize().background(Gray900.copy(alpha = 0.97f)).statusBarsPadding().padding(16.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Row(
+                Modifier.weight(1f).clip(RoundedCornerShape(14.dp)).background(Gray800).padding(horizontal = 12.dp, vertical = 12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Icon(Icons.Filled.Search, null, tint = AndenYellow)
+                Spacer(Modifier.width(8.dp))
+                BasicTextField(
+                    value = q, onValueChange = { q = it }, singleLine = true,
+                    textStyle = TextStyle(color = AndenWhite, fontSize = 16.sp),
+                    cursorBrush = SolidColor(AndenYellow),
+                    modifier = Modifier.fillMaxWidth().focusRequester(focus),
+                    decorationBox = { inner ->
+                        if (q.isEmpty()) Text("Buscar estación…", color = Gray400, fontSize = 16.sp)
+                        inner()
+                    },
+                )
+            }
+            Spacer(Modifier.width(10.dp))
+            Text("Cancelar", color = AndenYellow, fontSize = 14.sp, modifier = Modifier.clickable(onClick = onClose).padding(6.dp))
+        }
+        Spacer(Modifier.height(12.dp))
+        LazyColumn {
+            itemsIndexed(results, key = { i, s -> "${s.id}#$i" }) { _, s ->
+                Row(Modifier.fillMaxWidth().clickable { onPick(s) }.padding(vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+                    if (s.metro) { MetroGlyph(s, 18.dp); Spacer(Modifier.width(8.dp)) }
+                    Text(s.name, color = AndenWhite, fontSize = 15.sp, modifier = Modifier.weight(1f))
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun MapContainer(
+    context: Context,
+    dark: Boolean,
+    onMap: (MapLibreMap, Boolean) -> Unit,
+    onTap: (trainId: String?, stationId: String?, regionId: String?, criticalId: String?) -> Unit,
+) {
+    val lifecycle = LocalLifecycleOwner.current.lifecycle
+    // El oyente de toques se crea una sola vez: sin esto se quedaría con la lista de estaciones y comunidades vacía del primer instante.
+    val currentOnTap by rememberUpdatedState(onTap)
+    var mapRef by remember { mutableStateOf<MapLibreMap?>(null) }
+    var appliedDark by remember { mutableStateOf<Boolean?>(null) }
+
+    val mapView = remember {
+        MapLibre.getInstance(context)
+        MapView(context).also { mv ->
+            mv.onCreate(null)
+            mv.getMapAsync { m ->
+                m.uiSettings.isRotateGesturesEnabled = false
+                m.uiSettings.isLogoEnabled = false
+                m.addOnMapClickListener { latLng ->
+                    val p = m.projection.toScreenLocation(latLng)
+                    val train = m.queryRenderedFeatures(p, LAYER).firstOrNull()?.getStringProperty("id")
+                    // Margen de toque mayor para las estaciones (son más pequeñas).
+                    val box = RectF(p.x - 24f, p.y - 24f, p.x + 24f, p.y + 24f)
+                    val station = if (train == null) m.queryRenderedFeatures(box, AL_LAYER, ST_LAYER).firstOrNull()?.getStringProperty("id") else null
+                    // Tramo/puntos de una alerta crítica (margen amplio: la línea es fina)
+                    val critBox = RectF(p.x - 32f, p.y - 32f, p.x + 32f, p.y + 32f)
+                    val crit = if (train == null && station == null) m.queryRenderedFeatures(critBox, CriticalMap.CORE, CriticalMap.PT).firstOrNull()?.getStringProperty("id") else null
+                    val regionId = if (train == null && station == null && crit == null) m.queryRenderedFeatures(p, RG_FILL).firstOrNull()?.getStringProperty("id") else null
+                    currentOnTap(train, station, regionId, crit)
+                    train != null || station != null || crit != null || regionId != null
+                }
+                mapRef = m
+            }
+        }
+    }
+
+    // Aplica el estilo base (claro u oscuro) y añade las capas propias; se repite al cambiar de modo.
+    LaunchedEffect(mapRef, dark) {
+        val m = mapRef ?: return@LaunchedEffect
+        if (appliedDark == dark) return@LaunchedEffect
+        appliedDark = dark
+        onMap(m, false)
+        val url = if (dark) STYLE_DARK else STYLE_LIGHT
+        val json = spanishStyleJson(url)
+        val builder = if (json != null) Style.Builder().fromJson(json) else Style.Builder().fromUri(url)
+        m.setStyle(builder) { style ->
+            hideMaritimeBoundaries(style)
+            if (dark) brightenBaseLabels(style)
+            addAndenLayers(style, dark)
+            onMap(m, true)
+        }
+    }
+
+    DisposableEffect(lifecycle) {
+        val obs = LifecycleEventObserver { _, e ->
+            when (e) {
+                Lifecycle.Event.ON_START -> mapView.onStart()
+                Lifecycle.Event.ON_RESUME -> mapView.onResume()
+                Lifecycle.Event.ON_PAUSE -> mapView.onPause()
+                Lifecycle.Event.ON_STOP -> mapView.onStop()
+                Lifecycle.Event.ON_DESTROY -> mapView.onDestroy()
+                else -> {}
+            }
+        }
+        lifecycle.addObserver(obs)
+        onDispose { lifecycle.removeObserver(obs) }
+    }
+    AndroidView(factory = { mapView }, modifier = Modifier.fillMaxSize())
+}
+
+@Composable
+private fun TopBar(
+    trains: List<Train>, filter: Level?,
+    onFilter: (Level) -> Unit, onSearch: () -> Unit,
+) {
+    // Los trenes estimados por horario (Mallorca) no tienen retraso medido: no cuentan como "sin dato".
+    val counts = remember(trains) { trains.filter { !it.estimated }.groupingBy { it.level }.eachCount() }
+    Surface(shape = RoundedCornerShape(16.dp), color = Gray800.copy(alpha = 0.95f)) {
+        Column(Modifier.padding(horizontal = 14.dp, vertical = 10.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("Andén", color = AndenYellow, fontSize = 22.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+                Icon(Icons.Filled.Search, "Buscar estación", tint = AndenYellow,
+                    modifier = Modifier.clip(CircleShape).clickable(onClick = onSearch).padding(4.dp).size(24.dp))
+            }
+            Text("Incidencias en la red nacional de trenes", color = Gray400, fontSize = 12.sp)
+            Spacer(Modifier.height(6.dp))
+            // Cuatro botones iguales: número de trenes y qué significa cada color
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                for ((l, label) in listOf(Level.Green to "Puntuales", Level.Amber to "Retraso", Level.Red to "Graves", Level.Gray to "Sin dato")) {
+                    val on = filter == l
+                    Column(
+                        Modifier.weight(1f).clip(RoundedCornerShape(10.dp)).background(if (on) AndenYellow else Gray900)
+                            .clickable { onFilter(l) }.padding(vertical = 3.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Box(Modifier.size(7.dp).clip(CircleShape).background(l.color()))
+                            Spacer(Modifier.width(4.dp))
+                            Text("${counts[l] ?: 0}", color = if (on) Gray950 else AndenWhite, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                        }
+                        Text(label, color = if (on) Gray950 else Gray400, fontSize = 9.sp, lineHeight = 11.sp, maxLines = 1, softWrap = false)
+                    }
+                }
+            }
+        }
+    }
+}
+
+/** Leyenda fija del código de colores del mapa. */
+@Composable
+private fun MapLegend() {
+    Surface(shape = RoundedCornerShape(12.dp), color = Gray800.copy(alpha = 0.92f)) {
+        Column(Modifier.padding(horizontal = 9.dp, vertical = 7.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+            LegendRow(LevelGreen, "Puntual · <5 min")
+            LegendRow(LevelAmber, "Retraso · 5 a 14 min")
+            LegendRow(LevelRed, "Grave · 15+ min / cancelado")
+            LegendRow(LevelGray, "Sin dato")
+        }
+    }
+}
+
+@Composable
+private fun LegendRow(color: Color, text: String, ring: Boolean = false) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Box(
+            Modifier.size(9.dp).clip(CircleShape).background(color)
+                .then(if (ring) Modifier.border(1.5.dp, Gray600, CircleShape) else Modifier.border(1.dp, Gray900, CircleShape)),
+        )
+        Spacer(Modifier.width(6.dp))
+        Text(text, color = AndenWhite, fontSize = 9.5.sp, lineHeight = 12.sp, maxLines = 1, softWrap = false)
+    }
+}
+
+/**
+ * Reloj verde con fecha y hora actuales (se actualiza cada segundo), SIEMPRE visible. Si hay un problema con los datos
+ * (sin conexión o más de 20 min sin actualizarse) aparece además un aviso ámbar encima del reloj.
+ */
+@Composable
+private fun StatusLine(dataTimeSec: Long?, now: Long, error: String?) {
+    val age = dataTimeSec?.let { now / 1000 - it }
+    val stale = age != null && age > 1_200 // más de 20 min: algo falla en la publicación de datos
+    val warning = when {
+        age == null && error != null -> "Sin conexión con los datos ($error)"
+        error != null && age != null -> "Sin conexión · datos de ${ageLabel(age).removePrefix("hace ")}"
+        stale -> "Datos antiguos (${ageLabel(age!!)})"
+        else -> null
+    }
+    val pill = Modifier.clip(RoundedCornerShape(50)).background(Gray900.copy(alpha = 0.88f)).padding(horizontal = 10.dp, vertical = 4.dp)
+    val format = remember {
+        // Hora local del dispositivo (zona horaria por defecto), sin año para que quepa junto a la leyenda
+        java.text.SimpleDateFormat("EEE d MMM · HH:mm:ss", java.util.Locale("es", "ES"))
+    }
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        if (warning != null) Text(warning, color = LevelAmber, fontSize = 11.sp, fontWeight = FontWeight.Medium, modifier = pill)
+        Row(pill, verticalAlignment = Alignment.CenterVertically) {
+            LiveClock(12.dp, LevelGreen)
+            Spacer(Modifier.width(6.dp))
+            Text(
+                format.format(java.util.Date(now)), color = LevelGreen, fontSize = 11.sp, fontWeight = FontWeight.Medium,
+                style = androidx.compose.ui.text.TextStyle(fontFeatureSettings = "tnum"),
+            )
+        }
+    }
+}
+
+@Composable
+private fun TrainCard(t: Train, onClose: () -> Unit) {
+    Surface(shape = RoundedCornerShape(18.dp), color = Gray800, border = BorderStroke(1.dp, t.level.color().copy(alpha = 0.6f))) {
+        Column(Modifier.fillMaxWidth().padding(16.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(Modifier.size(12.dp).clip(CircleShape).background(t.level.color()))
+                Spacer(Modifier.width(10.dp))
+                Text(
+                    listOfNotNull(t.line, t.label).joinToString(" · "), color = AndenWhite, fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f),
+                )
+                Text("✕", color = Gray400, fontSize = 18.sp, modifier = Modifier.clickable(onClick = onClose).padding(4.dp))
+            }
+            t.route?.let { Text(it, color = Gray400, fontSize = 13.sp, modifier = Modifier.padding(top = 2.dp)) }
+            Spacer(Modifier.height(10.dp))
+            val d = t.delayMin
+            val delayText = when {
+                t.cancelled -> "Cancelado"
+                t.estimated -> "sin retraso medido"
+                d == null -> "Sin dato de retraso"
+                d <= 0 -> "Sin retraso"
+                else -> "+$d min"
+            }
+            Text("${if (t.estimated) "Según horario" else levelLabel(t.level)} · $delayText", color = if (t.estimated) Gray400 else t.level.color(), fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+            t.stopName?.let { Text("Última parada: $it", color = AndenWhite, fontSize = 13.sp, modifier = Modifier.padding(top = 4.dp)) }
+            Text(
+                when (t.positionBasis) {
+                    "exact" -> "Posición GPS"
+                    "schedule" -> "Posición estimada según el horario (sin datos en tiempo real)"
+                    "interpolated" -> "Posición estimada con el horario y el retraso medido"
+                    else -> "Posición aproximada (última parada)"
+                },
+                color = Gray400, fontSize = 11.sp, modifier = Modifier.padding(top = 4.dp),
+            )
+        }
+    }
+}
+
+/** Indicador de que hay alertas críticas iluminadas en el mapa; con una ✕ para quitar el resaltado si se pidió ver alguna. */
+@Composable
+private fun CriticalChip(count: Int, onClick: () -> Unit) {
+    val a = pulse(0.45f, 1f, 800)
+    val shape = RoundedCornerShape(50)
+    Row(
+        Modifier.clip(shape).background(Gray950.copy(alpha = 0.82f))
+            .border(BorderStroke(1.dp, LevelRed.copy(alpha = 0.35f + 0.4f * a)), shape)
+            .clickable(onClick = onClick).padding(horizontal = 10.dp, vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(Modifier.size(7.dp).clip(CircleShape).background(LevelRed.copy(alpha = a)))
+        Spacer(Modifier.width(6.dp))
+        Text(
+            if (count == 1) "1 alerta crítica" else "$count alertas críticas",
+            color = AndenWhite.copy(alpha = 0.92f), fontSize = 11.sp, fontWeight = FontWeight.Medium,
+        )
+    }
+}
+
+/** Ficha de una alerta tocada en el mapa. */
+@Composable
+private fun SignalCardOnMap(sg: SafetySignal, onClose: () -> Unit) {
+    val color = if (sg.level == "critical") LevelRed else if (sg.level == "warning") LevelAmber else Gray400
+    Surface(shape = RoundedCornerShape(18.dp), color = Gray800, border = BorderStroke(1.5.dp, color.copy(alpha = 0.8f))) {
+        Column(Modifier.fillMaxWidth().padding(16.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(Modifier.size(12.dp).clip(CircleShape).background(color))
+                Spacer(Modifier.width(10.dp))
+                Text(sg.title, color = AndenWhite, fontSize = 17.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+                Text("✕", color = Gray400, fontSize = 18.sp, modifier = Modifier.clickable(onClick = onClose).padding(4.dp))
+            }
+            Text(if (sg.level == "critical") "CRÍTICO" else if (sg.level == "warning") "ATENCIÓN" else "INFORMACIÓN", color = color, fontSize = 11.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = 1.sp, modifier = Modifier.padding(top = 4.dp))
+            Text(sg.detail, color = AndenWhite, fontSize = 13.sp, lineHeight = 18.sp, modifier = Modifier.padding(top = 6.dp))
+            val where = sg.segments.size
+            if (where > 0) Text(if (where == 1) "Tramo afectado marcado en el mapa" else "$where tramos afectados marcados en el mapa", color = Gray400, fontSize = 12.sp, modifier = Modifier.padding(top = 6.dp))
+            Text("Datos abiertos, orientativos: sigue siempre las indicaciones del operador.", color = Gray400, fontSize = 11.sp, modifier = Modifier.padding(top = 6.dp))
+        }
+    }
+}

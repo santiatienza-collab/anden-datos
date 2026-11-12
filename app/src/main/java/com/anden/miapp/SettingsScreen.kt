@@ -1,0 +1,200 @@
+package com.anden.miapp
+
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.anden.miapp.ui.theme.AndenWhite
+import com.anden.miapp.ui.theme.AndenYellow
+import com.anden.miapp.ui.theme.Gray400
+import com.anden.miapp.ui.theme.Gray600
+import com.anden.miapp.ui.theme.Gray800
+import com.anden.miapp.ui.theme.Gray900
+import com.anden.miapp.ui.theme.Gray950
+import com.anden.miapp.ui.theme.LevelAmber
+import com.anden.miapp.ui.theme.LevelGreen
+import com.anden.miapp.ui.theme.LevelRed
+import kotlinx.coroutines.delay
+
+private fun sourceLabel(id: String) = when (id) {
+    "renfe-gtfs-cercanias" -> "Horarios · Cercanías"
+    "renfe-gtfs-ld" -> "Horarios · Larga distancia"
+    "renfe-rt-cercanias-trips" -> "Retrasos · Cercanías"
+    "renfe-rt-ld-trips" -> "Retrasos · Larga distancia"
+    "renfe-rt-cercanias-vehicles" -> "Posiciones · Cercanías"
+    "renfe-rt-ld-vehicles" -> "Posiciones · Larga distancia"
+    "renfe-alerts" -> "Avisos de Renfe"
+    "ctm-mallorca" -> "Horarios · Mallorca (SFM)"
+    "euskotren-gtfs" -> "Horarios · Euskotren"
+    "metrobilbao-gtfs" -> "Horarios · Metro Bilbao"
+    "fgc-gtfs" -> "Horarios · FGC"
+    "tmb-itransit" -> "Próximos trenes · Metro Barcelona (TMB)"
+    "euskotren-rt-trips" -> "Retrasos · Euskotren"
+    "euskotren-rt-positions" -> "Posiciones · Euskotren (estimadas)"
+    "euskotren-rt-alerts" -> "Avisos · Euskotren"
+    "metrobilbao-rt-trips" -> "Retrasos · Metro Bilbao"
+    "metrobilbao-rt-vehicles" -> "Posiciones · Metro Bilbao"
+    "fgc-rt-trips" -> "Retrasos · FGC"
+    "fgc-rt-positions" -> "Posiciones · FGC (estimadas)"
+    else -> id
+}
+
+@Composable
+fun SettingsScreen(dark: Boolean, onDark: (Boolean) -> Unit, notify: Boolean, onNotify: (Boolean) -> Unit) {
+    var sources by remember { mutableStateOf<SourcesInfo?>(null) }
+    var failMsg by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(Unit) {
+        while (true) {
+            runCatching { TrainsApi.sources() }.onSuccess { sources = it; failMsg = null }.onFailure { failMsg = it.message ?: "sin red" }
+            delay(15_000)
+        }
+    }
+
+    Column(Modifier.fillMaxSize().statusBarsPadding().verticalScroll(rememberScrollState()).padding(16.dp)) {
+        Text("Ajustes", color = AndenYellow, fontSize = 22.sp, fontWeight = FontWeight.Bold)
+        Spacer(Modifier.height(16.dp))
+
+        Section("Aspecto") {
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text("Modo oscuro", color = AndenWhite, fontSize = 15.sp)
+                    Text("Mapa con fondo oscuro", color = Gray400, fontSize = 12.sp)
+                }
+                Switch(
+                    checked = dark, onCheckedChange = onDark,
+                    colors = SwitchDefaults.colors(
+                        checkedThumbColor = Gray950, checkedTrackColor = AndenYellow,
+                        uncheckedThumbColor = Gray400, uncheckedTrackColor = Gray900,
+                    ),
+                )
+            }
+        }
+
+        Section("Seguridad") {
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text("Notificar alertas críticas", color = AndenWhite, fontSize = 15.sp)
+                    Text("Accidente, fallo de señalización, vía cortada o riesgo de alcance. Llegan como notificación push en cuanto se detectan.", color = Gray400, fontSize = 12.sp)
+                }
+                Switch(
+                    checked = notify, onCheckedChange = onNotify,
+                    colors = SwitchDefaults.colors(
+                        checkedThumbColor = Gray950, checkedTrackColor = AndenYellow,
+                        uncheckedThumbColor = Gray400, uncheckedTrackColor = Gray900,
+                    ),
+                )
+            }
+        }
+
+        Section("Que las alertas lleguen siempre") {
+            val ctx = androidx.compose.ui.platform.LocalContext.current
+            Text(
+                "Muchos móviles (OPPO, Xiaomi, Huawei, Samsung…) frenan las apps que llevan tiempo cerradas y bloquean sus notificaciones. " +
+                    "Para que las alertas críticas lleguen siempre: 1) pulsa «Ajustes de batería», elige «Todas las aplicaciones», busca Andén y ponla en «No optimizar»; " +
+                    "2) en los ajustes del móvil permite el inicio automático de Andén; 3) no la cierres «forzando la detención».",
+                color = Gray400, fontSize = 12.sp, lineHeight = 17.sp,
+            )
+            Spacer(Modifier.height(10.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                for ((label, action) in listOf<Pair<String, () -> Unit>>(
+                    "Ajustes de batería" to {
+                        runCatching { ctx.startActivity(android.content.Intent(android.provider.Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)) }
+                    },
+                    "Notificación de prueba" to { SafetyNotifier.testNotification(ctx) },
+                )) {
+                    Text(
+                        label, color = Gray950, fontSize = 12.sp, fontWeight = FontWeight.Bold,
+                        modifier = Modifier.clip(RoundedCornerShape(50)).background(AndenYellow).clickable(onClick = action).padding(horizontal = 14.dp, vertical = 8.dp),
+                    )
+                }
+            }
+        }
+
+        Section("Estado de los datos") {
+            Text(
+                "Los datos se actualizan cada pocos minutos desde GitHub; la antigüedad que ves es la de la última actualización.",
+                color = Gray400, fontSize = 12.sp, lineHeight = 17.sp,
+            )
+            Spacer(Modifier.height(10.dp))
+            val info = sources
+            val list = info?.list
+            when {
+                list == null && failMsg != null -> Text("No se pudieron cargar los datos (${failMsg}). Se reintentará solo; comprueba tu conexión a internet.", color = LevelAmber, fontSize = 13.sp)
+                list == null -> Text("Comprobando…", color = Gray400, fontSize = 13.sp)
+                else -> Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    // Antigüedad de la última publicación de datos: si pasa de 20 min, algo falla en la actualización
+                    val snap = info.snapshotAgeSec
+                    Text(
+                        if (snap > 1_200) "Última actualización de los datos: ${ageLabel(snap)} (antigua)" else "Última actualización de los datos: ${ageLabel(snap)}",
+                        color = if (snap > 1_200) LevelAmber else AndenWhite, fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
+                    )
+                    for (s in list) {
+                        val stale = (s.ageSec ?: 0) > 600
+                        val color = when { !s.ok -> LevelRed; stale -> LevelAmber; else -> LevelGreen }
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Box(Modifier.size(9.dp).clip(CircleShape).background(color))
+                            Spacer(Modifier.width(10.dp))
+                            Text(sourceLabel(s.id), color = AndenWhite, fontSize = 13.sp, modifier = Modifier.weight(1f))
+                            Text(
+                                when { !s.ok -> "error"; s.ageSec != null -> ageLabel(s.ageSec) + if (stale) " · antiguo" else ""; else -> "cargado" },
+                                color = if (color == LevelGreen) Gray400 else color, fontSize = 12.sp,
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
+        Section("Acerca de") {
+            Text("Andén · versión ${BuildConfig.VERSION_NAME}", color = AndenWhite, fontSize = 14.sp)
+            Spacer(Modifier.height(8.dp))
+            Text(
+                "Datos de trenes: Renfe, Euskotren, Metro Bilbao, FGC, TMB (próximos trenes del metro de Barcelona) y Consorci de Transports de Mallorca (datos abiertos, CC BY 4.0 o equivalente). En Mallorca no hay tiempo real: las posiciones se estiman según el horario. La gravedad de los avisos se estima a partir de su texto. " +
+                    "Los datos son orientativos: para decisiones de viaje consulta los canales oficiales del operador.",
+                color = Gray400, fontSize = 12.sp, lineHeight = 17.sp,
+            )
+            Spacer(Modifier.height(8.dp))
+            Text(
+                "Mapa: © OpenStreetMap contributors, OpenMapTiles y OpenFreeMap. Límites administrativos: © EuroGeographics (Eurostat GISCO).",
+                color = Gray400, fontSize = 12.sp, lineHeight = 17.sp,
+            )
+        }
+    }
+}
+
+@Composable
+private fun Section(title: String, content: @Composable () -> Unit) {
+    Text(title.uppercase(), color = Gray400, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.sp)
+    Spacer(Modifier.height(8.dp))
+    Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Gray800).padding(14.dp)) { content() }
+    Spacer(Modifier.height(18.dp))
+}
