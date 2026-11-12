@@ -425,14 +425,17 @@ fun MapScreen(
         }
     }
     // "Ver en el mapa": encuadra todas las alertas pedidas (tramos y puntos) y las resalta
-    LaunchedEffect(focus, map, styleReady, signals) {
-        val req = focus ?: return@LaunchedEffect
+    var chipFocus by remember { mutableStateOf<FocusRequest?>(null) } // toque en la píldora de alertas críticas
+    LaunchedEffect(focus, chipFocus, map, styleReady, signals) {
+        val req = listOfNotNull(focus, chipFocus).maxByOrNull { it.nonce } ?: return@LaunchedEffect
         val m = map ?: return@LaunchedEffect
         if (!styleReady) return@LaunchedEffect
         val wanted = signals.filter { it.id in req.ids }
         if (wanted.isEmpty()) return@LaunchedEffect
         highlighted = wanted.map { it.id }
         station = null; selectedId = null
+        // Con una comunidad filtrada, las alertas de fuera quedarían ocultas: se vuelve a toda España y se espera a que termine ese encuadre
+        if (region != null) { onRegion(null); delay(800) }
         openSignal = null // la ficha solo al tocar el tramo: si se abriera sola taparía parte del mapa encuadrado
         val bounds = CriticalMap.bounds(wanted)
         val one = CriticalMap.singlePoint(wanted)
@@ -513,10 +516,12 @@ fun MapScreen(
             )
             Spacer(Modifier.height(8.dp))
             RegionRow(regions, region, onPick = { onRegion(it); station = null; selectedId = null })
-            if (shownSignals.isNotEmpty()) {
+            // Píldora fija: solo desaparece cuando ya no hay alertas críticas. Al tocarla, el mapa encuadra los tramos afectados.
+            val criticalNow = signals.filter { it.level == "critical" }
+            if (criticalNow.isNotEmpty()) {
                 Spacer(Modifier.height(6.dp))
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                    CriticalChip(shownSignals.size, highlighted.isNotEmpty(), onClear = { highlighted = emptyList() })
+                    CriticalChip(criticalNow.size, onClick = { chipFocus = FocusRequest(criticalNow.map { it.id }, System.nanoTime()) })
                 }
             }
             Spacer(Modifier.weight(1f))
@@ -791,13 +796,13 @@ private fun TrainCard(t: Train, onClose: () -> Unit) {
 
 /** Indicador de que hay alertas críticas iluminadas en el mapa; con una ✕ para quitar el resaltado si se pidió ver alguna. */
 @Composable
-private fun CriticalChip(count: Int, highlighted: Boolean, onClear: () -> Unit) {
+private fun CriticalChip(count: Int, onClick: () -> Unit) {
     val a = pulse(0.45f, 1f, 800)
     val shape = RoundedCornerShape(50)
     Row(
         Modifier.clip(shape).background(Gray950.copy(alpha = 0.82f))
             .border(BorderStroke(1.dp, LevelRed.copy(alpha = 0.35f + 0.4f * a)), shape)
-            .padding(start = 9.dp, end = if (highlighted) 4.dp else 10.dp, top = 3.dp, bottom = 3.dp),
+            .clickable(onClick = onClick).padding(horizontal = 10.dp, vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(Modifier.size(7.dp).clip(CircleShape).background(LevelRed.copy(alpha = a)))
@@ -806,7 +811,6 @@ private fun CriticalChip(count: Int, highlighted: Boolean, onClear: () -> Unit) 
             if (count == 1) "1 alerta crítica" else "$count alertas críticas",
             color = AndenWhite.copy(alpha = 0.92f), fontSize = 11.sp, fontWeight = FontWeight.Medium,
         )
-        if (highlighted) Text("✕", color = Gray400, fontSize = 12.sp, modifier = Modifier.clip(CircleShape).clickable(onClick = onClear).padding(horizontal = 6.dp, vertical = 1.dp))
     }
 }
 
