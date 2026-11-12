@@ -89,7 +89,7 @@ fun CriticalBanner(signal: SafetySignal, count: Int, onOpen: () -> Unit, onDismi
             )
             Text(signal.title, color = AndenWhite, fontSize = 15.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
             Text(signal.detail, color = Gray400, fontSize = 12.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
-            Text("Toca para ver en Seguridad", color = LevelRed, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 3.dp))
+            Text(if (count > 1) "Toca para verlas en el mapa" else if (signal.hasPlace) "Toca para ver el tramo en el mapa" else "Toca para ver en Seguridad", color = LevelRed, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 3.dp))
         }
         Icon(
             Icons.Filled.Close, "Descartar", tint = Gray400,

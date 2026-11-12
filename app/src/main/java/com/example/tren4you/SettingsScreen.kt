@@ -103,7 +103,7 @@ fun SettingsScreen(dark: Boolean, onDark: (Boolean) -> Unit, notify: Boolean, on
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
                     Text("Notificar alertas críticas", color = AndenWhite, fontSize = 15.sp)
-                    Text("Accidente, fallo de señalización o riesgo de alcance. Con la app cerrada se comprueba cada ~15 min.", color = Gray400, fontSize = 12.sp)
+                    Text("Accidente, fallo de señalización, vía cortada o riesgo de alcance. Llegan como notificación push en cuanto se detectan.", color = Gray400, fontSize = 12.sp)
                 }
                 Switch(
                     checked = notify, onCheckedChange = onNotify,
@@ -112,6 +112,30 @@ fun SettingsScreen(dark: Boolean, onDark: (Boolean) -> Unit, notify: Boolean, on
                         uncheckedThumbColor = Gray400, uncheckedTrackColor = Gray900,
                     ),
                 )
+            }
+        }
+
+        Section("Que las alertas lleguen siempre") {
+            val ctx = androidx.compose.ui.platform.LocalContext.current
+            Text(
+                "Muchos móviles (OPPO, Xiaomi, Huawei, Samsung…) frenan las apps que llevan tiempo cerradas y bloquean sus notificaciones. " +
+                    "Para que las alertas críticas lleguen siempre: 1) pulsa «Ajustes de batería», elige «Todas las aplicaciones», busca Andén y ponla en «No optimizar»; " +
+                    "2) en los ajustes del móvil permite el inicio automático de Andén; 3) no la cierres «forzando la detención».",
+                color = Gray400, fontSize = 12.sp, lineHeight = 17.sp,
+            )
+            Spacer(Modifier.height(10.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                for ((label, action) in listOf<Pair<String, () -> Unit>>(
+                    "Ajustes de batería" to {
+                        runCatching { ctx.startActivity(android.content.Intent(android.provider.Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)) }
+                    },
+                    "Notificación de prueba" to { SafetyNotifier.testNotification(ctx) },
+                )) {
+                    Text(
+                        label, color = Gray950, fontSize = 12.sp, fontWeight = FontWeight.Bold,
+                        modifier = Modifier.clip(RoundedCornerShape(50)).background(AndenYellow).clickable(onClick = action).padding(horizontal = 14.dp, vertical = 8.dp),
+                    )
+                }
             }
         }
 

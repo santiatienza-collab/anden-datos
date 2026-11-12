@@ -150,3 +150,13 @@ nav button.blink { animation: neon 1.2s infinite; color: #fff; border: 2px solid
 header { position: relative; }
 header::after { content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 2px;
   background: linear-gradient(90deg, rgba(255,214,10,0) 0%, #ffd60a 15%, #ffd60a 85%, rgba(255,214,10,0) 100%); }
+
+/* Alertas críticas en el mapa */
+#focus-chip { position: absolute; left: 10px; bottom: 34px; z-index: 5; display: flex; align-items: center; gap: 8px; background: rgba(20,20,22,.94); color: #ffd9de; border: 1.5px solid #ff1744;
+  border-radius: 999px; padding: 6px 12px; font-size: 12px; font-weight: 700; box-shadow: 0 0 14px rgba(255,23,68,.6); }
+#focus-chip[hidden] { display: none; }
+#focus-chip i { width: 9px; height: 9px; border-radius: 50%; background: #ff1744; box-shadow: 0 0 8px 2px #ff1744; animation: neonText 1.2s infinite; }
+#focus-chip button { background: none; border: 0; color: #ffd9de; cursor: pointer; font-size: 14px; padding: 0 2px; }
+.acard.crit { border: 1.5px solid #ff1744; box-shadow: 0 0 12px rgba(255,23,68,.45); }
+.locate { margin-top: 8px; background: #ff1744; color: #fff; border: 0; border-radius: 999px; padding: 7px 14px; font-weight: 700; font-size: 12px; cursor: pointer; box-shadow: 0 0 10px rgba(255,23,68,.7); }
+.locate:hover { filter: brightness(1.1); }

@@ -19,6 +19,9 @@ class MainActivity : ComponentActivity() {
     /** Sección que debe abrirse al llegar desde una notificación (p. ej. "Safety"). */
     private var startSection by mutableStateOf<String?>(null)
 
+    /** Alerta concreta a mostrar en el mapa al llegar desde una notificación. */
+    private var startSignal by mutableStateOf<String?>(null)
+
     private val askNotifications = registerForActivityResult(ActivityResultContracts.RequestPermission()) { }
 
     /** Pide el permiso de notificaciones (Android 13+) si falta. */
@@ -35,6 +38,7 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge(statusBarStyle = dark, navigationBarStyle = dark)
         initAds(this)
         startSection = intent?.getStringExtra(SafetyNotifier.EXTRA_SECTION)
+        startSignal = intent?.getStringExtra(SafetyNotifier.EXTRA_SIGNAL)
         SafetyNotifier.ensureChannel(this)
         SafetyNotifier.schedule(this)
         SafetyNotifier.syncTopic(this) // push (FCM): suscripción al tema de alertas críticas
@@ -43,13 +47,14 @@ class MainActivity : ComponentActivity() {
             requestNotificationPermission()
         }
         appOpen = AppOpenAdManager(this).also { it.load() }
-        setContent { Tren4youTheme { MainScreen(startSection) { startSection = null } } }
+        setContent { Tren4youTheme { MainScreen(startSection, startSignal) { startSection = null; startSignal = null } } }
     }
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
         startSection = intent.getStringExtra(SafetyNotifier.EXTRA_SECTION)
+        startSignal = intent.getStringExtra(SafetyNotifier.EXTRA_SIGNAL)
     }
 
     override fun onStop() {

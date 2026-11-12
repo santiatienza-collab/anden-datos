@@ -18,7 +18,7 @@ const SPAIN = [[-9.6, 35.9], [4.6, 43.9]];
 
 const S = {
   trains: [], stops: [], alerts: [], regions: [], region: '', tab: 'map',
-  safety: [], safetyNote: '', safetyStats: null, safetyLoaded: false, safetyLevel: null, safetyAcked: new Set(),
+  safety: [], safetyNote: '', safetyStats: null, safetyLoaded: false, safetyLevel: null, safetyAcked: new Set(), focusIds: [],
   level: null, service: null, sev: null, cat: null, onlyAlerts: false, q: '', generatedAt: 0,
 };
 let map, mapReady = false;
@@ -170,11 +170,119 @@ async function addLayers() {
     'circle-color': ['case', est, '#ffffff', ['match', ['get', 'level'], 'green', COLORS.green, 'amber', COLORS.amber, 'red', COLORS.red, COLORS.gray]],
     'circle-radius': ['interpolate', ['linear'], ['zoom'], 4, 3.5, 8, 6, 12, 9],
     'circle-stroke-color': ['case', est, c.estStroke, c.stroke], 'circle-stroke-width': ['case', est, 2.2, 1.4] } });
+  addCritLayers();
   mapReady = true;
   pushMap();
   if (!regionsGeoData) {
     try { regionsGeoData = await j('api/v1/regions/geo.json'); map.getSource('regions').setData(regionsGeoData); } catch (_) { /* se reintenta al cambiar de modo */ }
   }
+}
+
+// ---------- Alertas críticas en neón rojo ----------
+const NEON = '#ff1744';
+const SEV_COLOR = { critical: NEON, warning: '#ff9f0a', info: '#8e8e93' };
+
+/** Señales con geometría que se dibujan: todas las críticas y, además, las que se hayan pedido ver (aunque no sean críticas). */
+function critShown() {
+  return S.safety.filter((x) => x.severity === 'critical' || S.focusIds.includes(x.id));
+}
+
+function critGeo() {
+  const features = [];
+  for (const sig of critShown()) {
+    const props = { id: sig.id, sev: sig.severity, focus: S.focusIds.includes(sig.id) ? 1 : 0 };
+    const segs = sig.segments ?? [];
+    for (const g of segs) if (g.path && g.path.length > 1) features.push({ type: 'Feature', properties: props, geometry: { type: 'LineString', coordinates: g.path.map(([la, lo]) => [lo, la]) } });
+    const pts = sig.points?.length ? sig.points : !segs.length && sig.lat != null ? [{ lat: sig.lat, lon: sig.lon, label: sig.title }] : [];
+    for (const pt of pts) features.push({ type: 'Feature', properties: { ...props, label: pt.label }, geometry: { type: 'Point', coordinates: [pt.lon, pt.lat] } });
+    // Extremos del tramo: marcan dónde empieza y termina
+    for (const g of segs) if (g.path && g.path.length > 1) for (const [la, lo] of [g.path[0], g.path[g.path.length - 1]]) features.push({ type: 'Feature', properties: { ...props, label: g.from === g.to ? g.from : null, end: 1 }, geometry: { type: 'Point', coordinates: [lo, la] } });
+  }
+  return { type: 'FeatureCollection', features };
+}
+
+function addCritLayers() {
+  map.addSource('crit', { type: 'geojson', data: critGeo() });
+  const col = ['match', ['get', 'sev'], 'critical', NEON, 'warning', '#ff9f0a', '#8e8e93'];
+  const line = (id, width, blur, opacity, color) => map.addLayer({ id, type: 'line', source: 'crit', filter: ['==', ['geometry-type'], 'LineString'],
+    layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-color': color ?? col, 'line-width': width, 'line-blur': blur, 'line-opacity': opacity } }, 'trains');
+  line('crit-halo', ['interpolate', ['linear'], ['zoom'], 4, 14, 10, 30], 14, 0.35);
+  line('crit-glow', ['interpolate', ['linear'], ['zoom'], 4, 7, 10, 14], 4, 0.65);
+  line('crit-core', ['interpolate', ['linear'], ['zoom'], 4, 2.6, 10, 5], 0, 1);
+  line('crit-hot', ['interpolate', ['linear'], ['zoom'], 4, 1, 10, 2], 0, 0.95, '#ffe3e8');
+  const pt = (id, r, blur, opacity, color, stroke) => map.addLayer({ id, type: 'circle', source: 'crit', filter: ['==', ['geometry-type'], 'Point'],
+    paint: { 'circle-color': color ?? col, 'circle-radius': r, 'circle-blur': blur, 'circle-opacity': opacity, 'circle-stroke-width': stroke ?? 0, 'circle-stroke-color': '#ffe3e8' } }, 'trains');
+  pt('crit-pt-halo', ['case', ['==', ['get', 'end'], 1], 15, 26], 1, 0.35);
+  pt('crit-pt', ['case', ['==', ['get', 'end'], 1], 4.5, 8], 0, 1, undefined, 2);
+  for (const l of ['crit-core', 'crit-pt']) {
+    map.on('click', l, (e) => {
+      const sig = S.safety.find((x) => x.id === e.features[0].properties.id); if (!sig) return;
+      const detail = String(sig.detail ?? '');
+      new maplibregl.Popup({ maxWidth: '320px' }).setLngLat(e.lngLat).setHTML('<b style="color:' + (SEV_COLOR[sig.severity] ?? NEON) + '">' + esc(LV[sig.severity]?.label ?? 'ALERTA') + '</b> · <b>' + esc(sig.title) + '</b><div class="note" style="margin-top:4px">' + esc(detail) + '</div>').addTo(map);
+    });
+    map.on('mouseenter', l, () => (map.getCanvas().style.cursor = 'pointer'));
+    map.on('mouseleave', l, () => (map.getCanvas().style.cursor = ''));
+  }
+}
+
+function pushCrit() {
+  if (!map || !mapReady) return;
+  try { map.getSource('crit')?.setData(critGeo()); } catch (e) { console.error('[mapa crit]', e); }
+  renderFocusChip();
+}
+
+/** Parpadeo suave del neón (sin consumir si no hay nada que mostrar o la pestaña no se ve). */
+let pulseAt = 0;
+function pulseNeon(t) {
+  requestAnimationFrame(pulseNeon);
+  if (!map || !mapReady || document.hidden || S.tab !== 'map' || t - pulseAt < 70) return;
+  pulseAt = t;
+  if (!critShown().length || !map.getLayer('crit-halo')) return;
+  const k = 0.5 + 0.5 * Math.sin(t / 380); // 0..1
+  try {
+    map.setPaintProperty('crit-halo', 'line-opacity', 0.18 + 0.4 * k);
+    map.setPaintProperty('crit-glow', 'line-opacity', 0.45 + 0.5 * k);
+    map.setPaintProperty('crit-pt-halo', 'circle-opacity', 0.2 + 0.45 * k);
+  } catch (_) { /* el estilo se está recargando */ }
+}
+requestAnimationFrame(pulseNeon);
+
+/** Encuadra en el mapa las señales indicadas (y las resalta); si hay varias, las muestra todas con sus tramos. */
+function focusSignals(ids) {
+  const sigs = ids.map((id) => S.safety.find((x) => x.id === id)).filter(Boolean);
+  if (!sigs.length) return;
+  S.focusIds = sigs.map((x) => x.id);
+  setTab('map');
+  if (S.region) { S.region = ''; $('#region').value = ''; renderAll(); }
+  const coords = [];
+  for (const sig of sigs) {
+    for (const g of sig.segments ?? []) for (const [la, lo] of g.path ?? []) coords.push([lo, la]);
+    for (const pt of sig.points ?? []) coords.push([pt.lon, pt.lat]);
+    if (!sig.segments?.length && !sig.points?.length && sig.lat != null) coords.push([sig.lon, sig.lat]);
+  }
+  pushCrit();
+  if (!map || !coords.length) return;
+  const b = new maplibregl.LngLatBounds(coords[0], coords[0]);
+  for (const c of coords) b.extend(c);
+  setTimeout(() => {
+    map.resize();
+    const single = b.getWest() === b.getEast() && b.getNorth() === b.getSouth();
+    if (single) map.flyTo({ center: coords[0], zoom: 11 });
+    else map.fitBounds(b, { padding: { top: 90, bottom: 70, left: 50, right: 50 }, maxZoom: 13, duration: 900 });
+  }, 80);
+}
+
+function clearFocus() { S.focusIds = []; pushCrit(); }
+
+function renderFocusChip() {
+  const el = $('#focus-chip'); if (!el) return;
+  const n = critShown().length;
+  const shown = S.focusIds.length ? critShown().filter((x) => S.focusIds.includes(x.id)).length : 0;
+  el.hidden = !(n && S.tab === 'map');
+  if (el.hidden) return;
+  const crit = S.safety.filter((x) => x.severity === 'critical').length;
+  el.innerHTML = '<i></i>' + (S.focusIds.length && shown ? shown + (shown === 1 ? ' alerta resaltada' : ' alertas resaltadas') : crit + (crit === 1 ? ' alerta crítica en el mapa' : ' alertas críticas en el mapa')) +
+    (S.focusIds.length ? ' <button data-act="clear-focus" aria-label="Quitar resaltado">✕</button>' : '');
 }
 
 function pushMap() {
@@ -188,6 +296,7 @@ function pushMap() {
     st.setData(stopsGeo(inRegion(S.stops)));
     map.setPaintProperty('regions-fill', 'fill-opacity', ['case', ['==', ['get', 'id'], ['literal', S.region || '-']], 0.1, 0.01]);
   } catch (e) { console.error('[mapa]', e); }
+  pushCrit();
 }
 
 function fitRegion() {
@@ -283,7 +392,8 @@ function renderDelays() {
 // ---------- Avisos ----------
 function renderAlerts() {
   const el = $('#tab-alerts');
-  const rank = (a) => (a.stationInaccessible || a.severity === 'critical' ? 0 : a.severity === 'warning' ? 1 : 2);
+  const critAlert = new Set(S.safety.filter((x) => x.severity === 'critical' && x.alertId).map((x) => x.alertId));
+  const rank = (a) => (critAlert.has(a.id) ? -1 : a.stationInaccessible || a.severity === 'critical' ? 0 : a.severity === 'warning' ? 1 : 2);
   const all = S.alerts.filter((a) => !S.region || a.regions.includes(S.region));
   const list = all.filter((a) => !S.cat || a.category === S.cat).sort((a, b) => (a.active === b.active ? 0 : a.active ? -1 : 1) || rank(a) - rank(b));
   const icon = (a) => (a.category === 'accessibility' ? (a.accessibility?.element === 'elevator' ? '🛗' : a.accessibility?.element === 'escalator' ? '↕️' : a.stationInaccessible ? '🚫' : '♿') : CAT_ICON[a.category] ?? 'ℹ️');
@@ -293,7 +403,9 @@ function renderAlerts() {
       const col = a.stationInaccessible || a.severity === 'critical' ? COLORS.red : a.category === 'accessibility' ? '#ffd60a' : a.severity === 'warning' ? COLORS.amber : '#9a9aa2';
       const since = !a.active && a.activeFrom ? '<div style="color:var(--yellow);font-size:11px;font-weight:700">Desde el ' + new Date(a.activeFrom * 1000).toLocaleDateString('es-ES', { day: 'numeric', month: 'short' }) + '</div>' : '';
       const tags = [...a.lines, ...a.stationNames].map((x) => '<span>' + esc(x) + '</span>').join('');
-      return '<div class="acard"><div class="aicon" style="color:' + col + '">' + icon(a) + '</div><div>' + since + '<div>' + esc(a.text) + '</div>' + (tags ? '<div class="tags">' + tags + '</div>' : '') + '</div></div>';
+      const sig = S.safety.find((x) => x.alertId === a.id && x.severity === 'critical' && (x.segments?.length || x.points?.length || x.lat != null));
+      const locate = sig ? '<button class="locate" data-act="focus" data-v="' + esc(sig.id) + '">📍 Ver tramo afectado en el mapa</button>' : '';
+      return '<div class="acard' + (sig ? ' crit' : '') + '"><div class="aicon" style="color:' + col + '">' + icon(a) + '</div><div>' + since + '<div>' + esc(a.text) + '</div>' + (tags ? '<div class="tags">' + tags + '</div>' : '') + locate + '</div></div>';
     }).join('') : '<div class="note">No hay avisos con este filtro.</div>');
   $('#n-alerts').textContent = all.filter((a) => a.active && a.severity !== 'info').length || '';
 }
@@ -390,7 +502,7 @@ function handleSafety() {
   }
   localStorage.setItem('anden_notified', JSON.stringify(seen));
   if (S.tab === 'safety') criticals().forEach((x) => S.safetyAcked.add(x.id));
-  renderSafety(); renderBanner();
+  renderSafety(); renderBanner(); pushCrit();
 }
 
 function renderBanner() {
@@ -406,8 +518,8 @@ function renderBanner() {
   if (!show) return;
   const f = u[0];
   el.innerHTML = '<div class="ic">⚠️</div><div class="tx"><div class="k">ALERTA CRÍTICA' + (u.length > 1 ? ' · ' + u.length + ' activas' : '') + '</div><div class="t">' + esc(f.title) +
-    '</div><div class="d">' + esc(f.detail) + '</div><div class="go">Toca para ver en Seguridad</div></div><button class="x" data-act="ack-safety" aria-label="Descartar">✕</button>';
-  el.dataset.act = 'open-safety';
+    '</div><div class="d">' + esc(f.detail) + '</div><div class="go">Toca para ver ' + (u.length > 1 ? 'todas en el mapa' : 'el tramo en el mapa') + '</div></div><button class="x" data-act="ack-safety" aria-label="Descartar">✕</button>';
+  el.dataset.act = 'focus-crit';
 }
 
 function renderSafety() {
@@ -428,9 +540,9 @@ function renderSafety() {
         (S.safetyStats?.compared ? 'Se han comparado ' + S.safetyStats.compared + ' trenes con la actualización anterior.' : 'No hay trenes que comparar con la actualización anterior ahora mismo (por ejemplo, de madrugada).') + '</div></div></div>'
     : list.map((x) => {
         const lv = LV[x.severity] ?? LV.warning;
-        const clickable = x.lat != null && x.lon != null;
+        const clickable = x.lat != null && x.lon != null || x.segments?.length || x.points?.length;
         return '<div class="scard ' + esc(x.severity) + '"' + (clickable ? ' data-act="signal" data-v="' + esc(x.id) + '"' : '') + '><div class="ic">' + (KIND_ICON[x.kind] ?? '⚠️') + '</div><div><b>' + esc(x.title) + '</b><div class="note">' + esc(x.detail) +
-          '</div><div class="lv" style="color:' + lv.color + '">' + lv.label + '</div></div></div>';
+          '</div><div class="lv" style="color:' + lv.color + '">' + lv.label + (clickable ? ' · 📍 ver en el mapa' : '') + '</div></div></div>';
       }).join('');
   el.innerHTML = '<div class="row"><b>Seguridad</b><span class="note">Vigilancia con datos abiertos</span></div>' + (notifBtn ? '<div class="row">' + notifBtn + '</div>' : '') + chips + body +
     '<div class="snote">' + esc(S.safetyNote || 'Este panel no sustituye a la señalización ni a los sistemas del operador.') + '</div>';
@@ -438,6 +550,7 @@ function renderSafety() {
 
 function goSignal(id) {
   const sig = S.safety.find((x) => x.id === id); if (!sig) return;
+  if (sig.segments?.length || sig.points?.length) return focusSignals([id]);
   const t = [...(sig.tripIds ?? [])].reverse().map((tid) => S.trains.find((x) => x.tripId === tid)).find(Boolean);
   if (t) return goTrain(t.tripId);
   setTab('map');
@@ -454,7 +567,7 @@ function browserNotify(sig) {
   if (!('Notification' in window) || Notification.permission !== 'granted') return;
   try {
     const n = new Notification('⚠ ' + sig.title, { body: sig.detail + '\nDatos abiertos, orientativos: sigue siempre las indicaciones del operador.', tag: sig.id, requireInteraction: true, icon: 'icon.png' });
-    n.onclick = () => { window.focus(); setTab('safety'); n.close(); };
+    n.onclick = () => { window.focus(); focusSignals([sig.id]); n.close(); };
   } catch (_) { /* algunos navegadores solo permiten notificaciones desde un service worker */ }
 }
 
@@ -476,6 +589,7 @@ function setTab(tab) {
   if (tab === 'safety') { S.safety.filter((x) => x.severity === 'critical').forEach((x) => S.safetyAcked.add(x.id)); renderSafety(); renderBanner(); }
   if (tab === 'stations') renderStations();
   if (tab === 'map' && map) setTimeout(() => map.resize(), 0);
+  renderFocusChip();
 }
 function setRegion(id) { S.region = id || ''; renderAll(); fitRegion(); }
 function goTrain(id) {
@@ -497,7 +611,10 @@ document.addEventListener('click', (e) => {
     case 'region': setRegion(v); break;
     case 'slevel': S.safetyLevel = S.safetyLevel === v || !v ? null : v; renderSafety(); break;
     case 'open-safety': setTab('safety'); break;
-    case 'ack-safety': S.safety.filter((x) => x.severity === 'critical').forEach((x) => S.safetyAcked.add(x.id)); renderBanner(); break;
+    case 'focus-crit': { const ids = criticals().map((x) => x.id); ids.forEach((i) => S.safetyAcked.add(i)); focusSignals(ids); renderBanner(); break; }
+    case 'focus': focusSignals([v]); break;
+    case 'clear-focus': clearFocus(); break;
+    case 'ack-safety': e.stopPropagation(); S.safety.filter((x) => x.severity === 'critical').forEach((x) => S.safetyAcked.add(x.id)); renderBanner(); break;
     case 'notif': enableBrowserNotifications(); break;
     case 'signal': goSignal(v); break;
     case 'train': goTrain(v); break;

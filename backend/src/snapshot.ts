@@ -6,7 +6,7 @@ import { dirname, join } from 'node:path';
 import { Store } from './store.ts';
 import { loadTmb } from './tmb.ts';
 import { computeSafety, fetchPrevious, safetyStats } from './safety.ts';
-import { fcmConfigFromEnv, fcmConfigProblem, fetchPreviousCriticalIds, newCritical, sendSignals } from './fcm.ts';
+import { fcmConfigFromEnv, fcmConfigProblem, fetchSentLedger, newCritical, nextLedger, sendSignals } from './fcm.ts';
 import {
   alertsResponse, boardResponse, stopKey, healthResponse, regionsGeoResponse, regionsResponse,
   statusResponse, stopsResponse, trainsResponse,
@@ -65,27 +65,33 @@ const safetyInput = { now, trains: trainsBody.trains as any, alerts: alertsBody.
 const signals = computeSafety(safetyInput);
 store.health['safety'] = { count: signals.length, lastOkAt: now };
 
-// Push (FCM): solo las alertas críticas que no estaban ya en la publicación anterior. Un fallo aquí no afecta a los datos.
+// Push (FCM): cada alerta crítica se envía UNA vez (registro fcm-sent.json publicado con los datos). Un fallo aquí no afecta a los datos.
+const site = (process.env.SAFETY_PREV_URL ?? 'https://santiatienza-collab.github.io/anden-datos/api/v1/trains.json').replace(/trains\.json$/, '');
+let ledger: Record<string, number> | undefined;
 try {
   const fcm = fcmConfigFromEnv();
+  ledger = await fetchSentLedger(site + 'fcm-sent.json');
   if (!fcm) {
     const why = fcmConfigProblem();
     if (why) { store.health['fcm'] = { lastError: why }; console.error('[fcm]', why); }
   } else {
-    const prevCritical = await fetchPreviousCriticalIds(process.env.SAFETY_PREV_URL?.replace('trains.json', 'safety.json') ?? 'https://santiatienza-collab.github.io/anden-datos/api/v1/safety.json');
-    const toSend: { id: string; kind: string; severity: string; title: string; detail: string }[] = prevCritical ? newCritical(signals, prevCritical) : [];
+    const toSend: { id: string; kind: string; severity: string; title: string; detail: string; lat?: number; lon?: number }[] =
+      ledger ? newCritical(signals, new Set(Object.keys(ledger))) : [];
     // Prueba manual: si el flujo lo pide (fichero push-test.flag en el repositorio), se envía una notificación de prueba.
     if (process.env.FCM_TEST === '1') {
       toSend.push({ id: `test-push-${now}`, kind: 'test', severity: 'critical', title: 'Prueba de notificación', detail: 'Notificación push de prueba. No hay ninguna incidencia real.' });
     }
-    const sent = await sendSignals(fcm, toSend as any, now);
-    store.health['fcm'] = { count: sent, lastOkAt: now };
-    console.log(`[fcm] ${sent}/${toSend.length} notificaciones enviadas`);
+    const sentIds = await sendSignals(fcm, toSend, now);
+    if (ledger) ledger = nextLedger(signals, ledger, sentIds.filter((id) => !id.startsWith('test-push-')), now);
+    store.health['fcm'] = { count: sentIds.length, lastOkAt: now };
+    console.log(`[fcm] ${sentIds.length}/${toSend.length} notificaciones enviadas${ledger ? '' : ' (no se pudo leer el registro: no se envía nada)'}`);
   }
 } catch (e) {
   store.health['fcm'] = { lastError: (e as Error).message };
   console.error('[fcm]', (e as Error).message);
 }
+// Si no se pudo leer el registro, no se escribe uno vacío (provocaría reenvíos): la publicación anterior se conserva... y se vuelve a intentar.
+if (ledger) bytes += await write('api/v1/fcm-sent.json', { generatedAt: now, sent: ledger });
 bytes += await write('api/v1/safety.json', {
   generatedAt: now,
   comparedWithSnapshotAgeSec: prev ? now - prev.generatedAt : null,

@@ -70,14 +70,15 @@ enum class Section(val label: String, val icon: ImageVector) {
  * dibujan encima.
  */
 @Composable
-fun MainScreen(openSection: String? = null, onOpened: () -> Unit = {}) {
+fun MainScreen(openSection: String? = null, openSignal: String? = null, onOpened: () -> Unit = {}) {
     val context = LocalContext.current
     val prefs = remember { context.getSharedPreferences("anden", Context.MODE_PRIVATE) }
     // Modo oscuro del mapa: se elige en Ajustes y se recuerda
     var dark by remember { mutableStateOf(prefs.getBoolean("dark_map", false)) }
     var section by rememberSaveable { mutableStateOf(Section.Map) }
+    // Notificación tocada: se abre la sección indicada y, si trae una alerta concreta, se enfoca en el mapa (más abajo, al haber datos).
     LaunchedEffect(openSection) {
-        Section.entries.firstOrNull { it.name == openSection }?.let { section = it; onOpened() }
+        Section.entries.firstOrNull { it.name == openSection }?.let { section = it; if (openSignal == null) onOpened() }
     }
     var notify by remember { mutableStateOf(SafetyNotifier.enabled(context)) }
     var regions by remember { mutableStateOf<List<Region>>(emptyList()) }
@@ -91,6 +92,8 @@ fun MainScreen(openSection: String? = null, onOpened: () -> Unit = {}) {
     var safety by remember { mutableStateOf<SafetyData?>(null) }
     var pendingStation by remember { mutableStateOf<Station?>(null) }
     var pendingTrain by remember { mutableStateOf<Train?>(null) }
+    // Petición de "ver en el mapa" una o varias alertas (bocadillo, Seguridad, Avisos o notificación)
+    var focusReq by remember { mutableStateOf<FocusRequest?>(null) }
     val visited = remember { mutableStateListOf<Section>() }
     LaunchedEffect(section) { if (section != Section.Map && section !in visited) visited.add(section) }
     var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
@@ -137,6 +140,20 @@ fun MainScreen(openSection: String? = null, onOpened: () -> Unit = {}) {
     var acked by remember { mutableStateOf(setOf<String>()) }
     val criticals = remember(safety) { safety?.signals?.filter { it.level == "critical" }.orEmpty() }
     val unseen = criticals.filter { it.id !in acked }
+    fun focusOn(ids: List<String>) {
+        if (ids.isEmpty()) return
+        acked = acked + ids
+        focusReq = FocusRequest(ids, System.nanoTime())
+        section = Section.Map
+    }
+    // Llegada desde una notificación: cuando se cargan las señales, se muestra esa alerta (si ya no existe, se muestran las críticas)
+    LaunchedEffect(openSignal, safety) {
+        val id = openSignal ?: return@LaunchedEffect
+        val data = safety ?: return@LaunchedEffect
+        val ids = if (data.signals.any { it.id == id }) listOf(id) else data.signals.filter { it.level == "critical" }.map { it.id }
+        if (ids.isNotEmpty()) focusOn(ids)
+        onOpened()
+    }
     LaunchedEffect(section, criticals) {
         if (section == Section.Safety && criticals.isNotEmpty()) acked = acked + criticals.map { it.id }
     }
@@ -192,6 +209,7 @@ fun MainScreen(openSection: String? = null, onOpened: () -> Unit = {}) {
                 pendingStation = pendingStation, pendingTrain = pendingTrain,
                 onPendingHandled = { pendingStation = null; pendingTrain = null },
                 dark = dark,
+                signals = safety?.signals.orEmpty(), focus = focusReq, mapActive = section == Section.Map,
             )
             // Las secciones visitadas siguen montadas (ocultas con tamaño 0): así conservan la posición de lectura,
             // la búsqueda, los filtros y las ramas abiertas al cambiar de pestaña y volver.
@@ -207,7 +225,11 @@ fun MainScreen(openSection: String? = null, onOpened: () -> Unit = {}) {
                             trains, dataTimeSec, now, regions, region, onRegion = { region = it },
                             onPick = { pendingTrain = it; section = Section.Map },
                         )
-                        Section.Alerts -> AlertsPage(alerts, alertsLoaded, regions, region, onRegion = { region = it })
+                        Section.Alerts -> AlertsPage(
+                            alerts, alertsLoaded, regions, region, onRegion = { region = it },
+                            critical = criticals.filter { it.alertId != null && it.hasPlace }.associateBy { it.alertId!! },
+                            onLocate = { focusOn(listOf(it)) },
+                        )
                         Section.Stations -> StationsPage(
                             stations, regions, region, onRegion = { region = it },
                             onOpen = { pendingStation = it; section = Section.Map },
@@ -217,7 +239,8 @@ fun MainScreen(openSection: String? = null, onOpened: () -> Unit = {}) {
                             val train = sig.tripIds.reversed().firstNotNullOfOrNull { id -> trains.firstOrNull { it.id == id } }
                             val near = if (train == null && sig.lat != null && sig.lon != null)
                                 stations.minByOrNull { (it.lat - sig.lat) * (it.lat - sig.lat) + (it.lon - sig.lon) * (it.lon - sig.lon) } else null
-                            if (train != null) { pendingTrain = train; section = Section.Map }
+                            if (sig.segments.isNotEmpty() || sig.points.isNotEmpty()) focusOn(listOf(sig.id)) // con tramo o puntos: se ilumina en el mapa
+                            else if (train != null) { pendingTrain = train; section = Section.Map }
                             else if (near != null) { pendingStation = near; section = Section.Map }
                         }
                         Section.Settings -> SettingsScreen(
@@ -234,7 +257,7 @@ fun MainScreen(openSection: String? = null, onOpened: () -> Unit = {}) {
             if (unseen.isNotEmpty() && section != Section.Safety) {
                 CriticalBanner(
                     unseen.first(), unseen.size,
-                    onOpen = { section = Section.Safety },
+                    onOpen = { if (unseen.any { it.hasPlace }) focusOn(unseen.map { it.id }) else section = Section.Safety },
                     onDismiss = { acked = acked + unseen.map { it.id } },
                     modifier = Modifier.align(Alignment.TopCenter).statusBarsPadding().padding(horizontal = 12.dp, vertical = 8.dp),
                 )

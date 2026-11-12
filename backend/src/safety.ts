@@ -11,6 +11,8 @@
 // y Iryo, Ouigo y Alvia/AVE de otras compañías no publican datos abiertos: lo que no se ve, no se vigila.
 
 /** Tres niveles: info (conviene saberlo), warning (atención), critical (actuar/avisar ya; genera notificación). */
+import { centroid, lineSegment, type Segment } from './segments.ts';
+
 export type Level3 = 'info' | 'warning' | 'critical';
 
 export type SignalKind = 'closing_in' | 'stopped_train' | 'accident' | 'signalling' | 'track' | 'power' | 'cascade';
@@ -29,6 +31,10 @@ export interface SafetySignal {
   alertId?: string;
   /** Epoch seg. desde el que se observa la situación (si se conoce). */
   since?: number;
+  /** Tramo(s) afectado(s) para dibujar en el mapa (polilíneas [lat, lon]). */
+  segments?: Segment[];
+  /** Puntos afectados (trenes implicados) para marcar en el mapa. */
+  points?: { lat: number; lon: number; label: string }[];
 }
 
 export interface SafetyTrain {
@@ -56,6 +62,7 @@ export interface SafetyAlert {
   regions?: string[];
   stops?: { lat: number; lon: number }[];
   lines?: string[];
+  segments?: Segment[];
 }
 
 export interface PrevTrain { lat: number; lon: number; updatedAt: number }
@@ -150,10 +157,14 @@ function alertSignals(alerts: SafetyAlert[]): SafetySignal[] {
     if (seen.has(key)) continue;
     seen.add(key);
     const at = a.stops?.[0];
+    const segments = a.segments?.length ? a.segments : undefined;
+    const mid = segments ? centroid(segments) : undefined;
     out.push({
+      segments,
       id: `alert:${a.id}`, kind: c.kind, severity: c.severity, title: TITLES[c.kind],
       detail: a.text.replace(/\s+/g, ' ').trim().slice(0, 280),
-      lat: at?.lat, lon: at?.lon, region: a.regions?.[0], tripIds: [], routeIds: a.routeIds.slice(0, 6), alertId: a.id,
+      lat: at?.lat ?? mid?.[0], lon: at?.lon ?? mid?.[1], region: a.regions?.[0], tripIds: [], routeIds: a.routeIds.slice(0, 6), alertId: a.id,
+      points: !segments && a.stops?.length ? a.stops.slice(0, 6).map((x, i) => ({ lat: x.lat, lon: x.lon, label: 'Estación ' + (i + 1) })) : undefined,
     });
   }
   return out;
@@ -239,6 +250,8 @@ export function trainSignals(input: SafetyInput, official: SafetySignal[] = []):
         detail: `${name(c.m.t)} se acerca a ${name(s.t)}, detenido en vía desde hace ≥${hhmmss(s.dtSec)}: ${c.d.toFixed(1)} km de separación${eta}.`,
         lat: s.t.lat, lon: s.t.lon, region: s.t.region ?? undefined,
         tripIds: [c.m.t.tripId, s.t.tripId], routeIds: [c.m.t.routeId, s.t.routeId].filter((x): x is string => !!x), since,
+        segments: [lineSegment(name(c.m.t), name(s.t), [c.m.t.lat!, c.m.t.lon!], [s.t.lat!, s.t.lon!])],
+        points: [{ lat: c.m.t.lat!, lon: c.m.t.lon!, label: name(c.m.t) }, { lat: s.t.lat!, lon: s.t.lon!, label: name(s.t) + ' (detenido)' }],
       });
     } else if (s.dtSec >= SAFETY.stoppedAloneSec) {
       out.push({
@@ -246,6 +259,7 @@ export function trainSignals(input: SafetyInput, official: SafetySignal[] = []):
         detail: `${name(s.t)} lleva ≥${hhmmss(s.dtSec)} sin moverse fuera de estación${s.t.delayMin ? ` (retraso ${s.t.delayMin} min)` : ''}.`,
         lat: s.t.lat, lon: s.t.lon, region: s.t.region ?? undefined, tripIds: [s.t.tripId],
         routeIds: s.t.routeId ? [s.t.routeId] : [], since,
+        points: [{ lat: s.t.lat!, lon: s.t.lon!, label: name(s.t) + ' (detenido)' }],
       });
     }
   }
@@ -267,6 +281,7 @@ export function cascadeSignals(input: SafetyInput): SafetySignal[] {
       id: `cascade:${routeId}`, kind: 'cascade', severity: 'warning', title: TITLES.cascade,
       detail: `${late.length} de ${list.length} trenes de ${c.line ?? routeId} llevan más de ${SAFETY.cascadeDelayMin} min de retraso a la vez: puede haber una incidencia en la vía.`,
       lat: c.lat, lon: c.lon, region: c.region ?? undefined, tripIds: late.slice(0, 8).map((t) => t.tripId), routeIds: [routeId],
+      points: late.slice(0, 8).filter((t) => t.lat != null && t.lon != null).map((t) => ({ lat: t.lat!, lon: t.lon!, label: name(t) })),
     });
   }
   return out;

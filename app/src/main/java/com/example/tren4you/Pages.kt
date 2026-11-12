@@ -27,10 +27,13 @@ private fun PageHeader(title: String, subtitle: String) {
 
 /** Avisos de servicio: filtro de comunidad (desplegable) y de tipo (iconos). */
 @Composable
-fun AlertsPage(alerts: List<AlertItem>, loaded: Boolean, regions: List<Region>, region: Region?, onRegion: (Region?) -> Unit) {
+fun AlertsPage(
+    alerts: List<AlertItem>, loaded: Boolean, regions: List<Region>, region: Region?, onRegion: (Region?) -> Unit,
+    critical: Map<String, SafetySignal> = emptyMap(), onLocate: (String) -> Unit = {},
+) {
     Column(Modifier.fillMaxSize().statusBarsPadding()) {
         PageHeader("Avisos", region?.name ?: "Toda España")
-        Box(Modifier.weight(1f)) { AlertsContent(alerts, loaded, regions, region, onRegion) }
+        Box(Modifier.weight(1f)) { AlertsContent(alerts, loaded, regions, region, onRegion, critical, onLocate) }
     }
 }
 

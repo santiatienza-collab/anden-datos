@@ -65,7 +65,18 @@ data class SafetySignal(
     val lat: Double?,
     val lon: Double?,
     val tripIds: List<String>,
-)
+    /** Id del aviso de Renfe del que sale la señal (para enlazar desde la pestaña Avisos). */
+    val alertId: String? = null,
+    /** Tramo(s) afectado(s): polilíneas de pares (lat, lon). */
+    val segments: List<List<Pair<Double, Double>>> = emptyList(),
+    /** Trenes o estaciones implicados. */
+    val points: List<SafetyPoint> = emptyList(),
+) {
+    /** Se puede mostrar en el mapa (tiene tramo, puntos o al menos una coordenada). */
+    val hasPlace: Boolean get() = segments.isNotEmpty() || points.isNotEmpty() || (lat != null && lon != null)
+}
+
+data class SafetyPoint(val lat: Double, val lon: Double, val label: String)
 
 data class SafetyData(val generatedAt: Long, val note: String, val compared: Int, val signals: List<SafetySignal>)
 
@@ -80,6 +91,16 @@ fun parseSafety(o: JSONObject): SafetyData {
             lat = if (x.has("lat") && !x.isNull("lat")) x.getDouble("lat") else null,
             lon = if (x.has("lon") && !x.isNull("lon")) x.getDouble("lon") else null,
             tripIds = if (ids == null) emptyList() else (0 until ids.length()).map { i -> ids.getString(i) },
+            alertId = x.optString("alertId").ifEmpty { null },
+            segments = x.optJSONArray("segments")?.let { sa ->
+                (0 until sa.length()).mapNotNull { i ->
+                    val path = sa.getJSONObject(i).optJSONArray("path") ?: return@mapNotNull null
+                    (0 until path.length()).map { j -> path.getJSONArray(j).let { c -> c.getDouble(0) to c.getDouble(1) } }.takeIf { it.size >= 2 }
+                }
+            } ?: emptyList(),
+            points = x.optJSONArray("points")?.let { pa ->
+                (0 until pa.length()).map { i -> pa.getJSONObject(i).let { o -> SafetyPoint(o.getDouble("lat"), o.getDouble("lon"), o.optString("label")) } }
+            } ?: emptyList(),
         )
     }
     return SafetyData(
@@ -174,7 +195,7 @@ private fun SignalCard(s: SafetySignal, onClick: () -> Unit) {
     val color = levelColor(s.level)
     Row(
         Modifier.fillMaxWidth().padding(vertical = 4.dp).clip(RoundedCornerShape(14.dp)).background(Gray800)
-            .clickable(enabled = s.lat != null, onClick = onClick).height(IntrinsicSize.Min),
+            .clickable(enabled = s.hasPlace, onClick = onClick).height(IntrinsicSize.Min),
     ) {
         Box(Modifier.width(5.dp).fillMaxHeight().background(color))
         Row(Modifier.padding(12.dp), verticalAlignment = Alignment.Top) {
@@ -185,7 +206,7 @@ private fun SignalCard(s: SafetySignal, onClick: () -> Unit) {
                 Spacer(Modifier.height(2.dp))
                 Text(s.detail, color = Gray400, fontSize = 13.sp)
                 Spacer(Modifier.height(6.dp))
-                Text(levelLabel(s.level), color = color, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                Text(levelLabel(s.level) + if (s.hasPlace) " · ver en el mapa" else "", color = color, fontSize = 10.sp, fontWeight = FontWeight.Bold)
             }
         }
     }

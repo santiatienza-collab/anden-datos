@@ -61,21 +61,27 @@ async function accessToken(cfg: FcmConfig, nowSec: number): Promise<string> {
  * Mensaje de DATOS (sin bloque "notification"): así la app lo recibe también con la app cerrada y construye ella la
  * notificación con su canal, icono y la acción de abrir Seguridad. Prioridad alta para que llegue al momento.
  */
-export function buildMessage(s: Pick<SafetySignal, 'id' | 'kind' | 'severity' | 'title' | 'detail'>) {
+type PushSignal = Pick<SafetySignal, 'id' | 'kind' | 'severity' | 'title' | 'detail'> & { lat?: number; lon?: number };
+
+export function buildMessage(s: PushSignal) {
   return {
     message: {
       topic: FCM_TOPIC,
-      data: { id: s.id, kind: s.kind, level: s.severity, title: s.title, detail: s.detail.slice(0, 600) },
+      // lat/lon (si se conocen) permiten abrir el mapa en el lugar exacto al tocar la notificación.
+      data: {
+        id: s.id, kind: s.kind, level: s.severity, title: s.title, detail: s.detail.slice(0, 600),
+        ...(s.lat != null && s.lon != null ? { lat: String(s.lat), lon: String(s.lon) } : {}),
+      },
       android: { priority: 'HIGH', ttl: '3600s' },
     },
   };
 }
 
-/** Envía las señales; devuelve cuántas se enviaron. Una caída del envío no debe romper la publicación de datos. */
-export async function sendSignals(cfg: FcmConfig, signals: Pick<SafetySignal, 'id' | 'kind' | 'severity' | 'title' | 'detail'>[], nowSec: number): Promise<number> {
-  if (!signals.length) return 0;
+/** Envía las señales; devuelve los ids enviados. Una caída del envío no debe romper la publicación de datos. */
+export async function sendSignals(cfg: FcmConfig, signals: PushSignal[], nowSec: number): Promise<string[]> {
+  if (!signals.length) return [];
   const token = await accessToken(cfg, nowSec);
-  let sent = 0;
+  const sent: string[] = [];
   for (const s of signals) {
     const res = await fetch(`https://fcm.googleapis.com/v1/projects/${cfg.projectId}/messages:send`, {
       method: 'POST',
@@ -83,7 +89,7 @@ export async function sendSignals(cfg: FcmConfig, signals: Pick<SafetySignal, 'i
       body: JSON.stringify(buildMessage(s)),
       signal: AbortSignal.timeout(20_000),
     });
-    if (res.ok) sent++;
+    if (res.ok) sent.push(s.id);
     else console.error(`[fcm] envío rechazado (HTTP ${res.status}) para ${s.id}`);
   }
   return sent;
@@ -104,4 +110,30 @@ export async function fetchPreviousCriticalIds(url: string): Promise<Set<string>
   } catch {
     return undefined;
   }
+}
+
+/**
+ * Registro de lo ya enviado (id → cuándo), publicado junto a los datos. Sustituye a comparar con el safety.json anterior:
+ * así una crítica que ya estaba cuando se desplegó, o que apareció durante un hueco de publicación, se avisa igualmente UNA vez.
+ * undefined = no se pudo leer (no se envía nada, por si ya se había avisado); 404 = aún no existe (registro vacío).
+ */
+export async function fetchSentLedger(url: string): Promise<Record<string, number> | undefined> {
+  try {
+    const res = await fetch(`${url}?x=${Date.now()}`, { signal: AbortSignal.timeout(15_000) });
+    if (res.status === 404) return {};
+    if (!res.ok) return undefined;
+    const j: any = await res.json();
+    return j && typeof j.sent === 'object' && j.sent ? j.sent : {};
+  } catch {
+    return undefined;
+  }
+}
+
+/** Registro nuevo: lo enviado ahora, más lo anterior que siga siendo crítico (si deja de serlo y reaparece, se avisa de nuevo). */
+export function nextLedger(signals: { id: string; severity: string }[], ledger: Record<string, number>, sentNow: string[], nowSec: number): Record<string, number> {
+  const out: Record<string, number> = {};
+  const stillCritical = new Set(signals.filter((s) => s.severity === 'critical').map((s) => s.id));
+  for (const [id, t] of Object.entries(ledger)) if (stillCritical.has(id)) out[id] = t;
+  for (const id of sentNow) out[id] = nowSec;
+  return out;
 }

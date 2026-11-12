@@ -10,6 +10,7 @@ import { RT_URLS, fetchFeed, parseAlerts, parseTripUpdates, parseVehicles } from
 import { routeStatus, trainLevel } from './semaphore.ts';
 import { regionOf } from './regions.ts';
 import { provinceOf } from './provinces.ts';
+import { StopIndex, segmentsFromText, type Segment } from './segments.ts';
 import { classifyService, SERVICE_COMPANY } from './operators.ts';
 import type { Alert, Route, RouteStatus, Stop, TrainPosition, Trip, TripDelay } from './model.ts';
 
@@ -243,6 +244,21 @@ export class Store {
     return [...ids].map((id) => routeStatus(id, byRoute.get(id) ?? [], alertsByRoute.get(id) ?? [], at));
   }
 
+  private segCache = new Map<string, Segment[]>();
+
+  private alertSegments(a: Alert): Segment[] {
+    const key = a.id + '|' + a.text.length + '|' + a.routeIds.join(',');
+    const hit = this.segCache.get(key);
+    if (hit) return hit;
+    if (this.stops.size === 0) return [];
+    if (!this.stopIndex || this.stopIndex.size !== this.stops.size) this.stopIndex = { size: this.stops.size, idx: new StopIndex(this.stops.values()) };
+    let segs: Segment[] = [];
+    try { if (/\bentre\b|\bde\s+\S.*\s+a\s+\S/i.test(a.text)) segs = segmentsFromText(a.text, this.stopIndex.idx, this.routeShapes(a.routeIds)); } catch { segs = []; }
+    if (this.segCache.size > 500) this.segCache.clear();
+    this.segCache.set(key, segs);
+    return segs;
+  }
+
   private stopRegions = new Map<string, string | undefined>();
 
   /** Comunidad autónoma de una estación (en caché: las estaciones no se mueven). */
@@ -277,6 +293,21 @@ export class Store {
     return res;
   }
 
+  private stopIndex?: { size: number; idx: StopIndex };
+
+  /** Trazados (hasta 4 distintos) de las líneas dadas, para dibujar el tramo afectado siguiendo la vía. */
+  routeShapes(routeIds: string[]): [number, number][][] {
+    const out: [number, number][][] = [];
+    const perRoute = new Map<string, Set<string>>();
+    for (const t of this.trips.values()) {
+      if (!t.shapeId || !routeIds.includes(t.routeId)) continue;
+      const set = perRoute.get(t.routeId) ?? perRoute.set(t.routeId, new Set()).get(t.routeId)!;
+      if (set.size < 4) set.add(t.shapeId);
+    }
+    for (const set of perRoute.values()) for (const id of set) { const l = this.shapes.get(id); if (l?.length) out.push(l); }
+    return out;
+  }
+
   /** Aviso enriquecido para los clientes: comunidades, líneas y estaciones afectadas. */
   describeAlert(a: Alert, at = nowSec()) {
     const regions = new Set<string>();
@@ -291,6 +322,8 @@ export class Store {
       lines: lines.slice(0, 8),
       stationNames: stops.slice(0, 3).map((s) => s.name),
       stops,
+      // Tramos "entre A y B" citados por el texto (los avisos casi nunca traen las estaciones estructuradas).
+      segments: this.alertSegments(a),
     };
   }
 

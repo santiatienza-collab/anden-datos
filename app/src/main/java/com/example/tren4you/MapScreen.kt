@@ -328,6 +328,7 @@ private fun addAndenLayers(style: Style, dark: Boolean) {
             circleStrokeWidth(Expression.switchCase(Expression.eq(Expression.get("est"), Expression.literal(true)), Expression.literal(2.4f), Expression.literal(1.4f))),
         )
     )
+    CriticalMap.addLayers(style, LAYER)
 }
 
 /**
@@ -347,6 +348,9 @@ fun MapScreen(
     pendingTrain: Train?,
     onPendingHandled: () -> Unit,
     dark: Boolean,
+    signals: List<SafetySignal> = emptyList(),
+    focus: FocusRequest? = null,
+    mapActive: Boolean = true,
 ) {
     val context = LocalContext.current
     val density = LocalDensity.current
@@ -405,6 +409,42 @@ fun MapScreen(
     LaunchedEffect(visibleStations, styleReady) {
         if (styleReady) map?.style?.getSourceAs<GeoJsonSource>(ST_SRC)?.setGeoJson(stationsGeoJson(visibleStations))
     }
+    // Alertas críticas en neón: siempre las críticas y, además, las que se hayan pedido ver.
+    var highlighted by remember { mutableStateOf<List<String>>(emptyList()) }
+    var openSignal by remember { mutableStateOf<SafetySignal?>(null) }
+    val shownSignals = remember(signals, highlighted) { signals.filter { it.level == "critical" || it.id in highlighted } }
+    LaunchedEffect(shownSignals, highlighted, styleReady) {
+        if (styleReady) map?.style?.getSourceAs<GeoJsonSource>(CriticalMap.SRC)?.setGeoJson(CriticalMap.geoJson(shownSignals, highlighted.toSet()))
+    }
+    // Parpadeo del halo (solo con el mapa a la vista y algo que iluminar)
+    LaunchedEffect(styleReady, mapActive, shownSignals.isNotEmpty()) {
+        if (!styleReady || !mapActive || shownSignals.isEmpty()) return@LaunchedEffect
+        while (true) {
+            map?.style?.let { CriticalMap.pulse(it, CriticalMap.pulseValue(System.currentTimeMillis())) }
+            delay(80)
+        }
+    }
+    // "Ver en el mapa": encuadra todas las alertas pedidas (tramos y puntos) y las resalta
+    LaunchedEffect(focus, map, styleReady, signals) {
+        val req = focus ?: return@LaunchedEffect
+        val m = map ?: return@LaunchedEffect
+        if (!styleReady) return@LaunchedEffect
+        val wanted = signals.filter { it.id in req.ids }
+        if (wanted.isEmpty()) return@LaunchedEffect
+        highlighted = wanted.map { it.id }
+        station = null; selectedId = null
+        openSignal = wanted.singleOrNull()
+        val bounds = CriticalMap.bounds(wanted)
+        val one = CriticalMap.singlePoint(wanted)
+        with(density) {
+            val h = m.height.toFloat().coerceAtLeast(1f)
+            val top = minOf(215.dp.roundToPx().toFloat(), h * 0.36f).toInt()
+            val bottom = minOf(150.dp.roundToPx().toFloat(), h * 0.30f).toInt()
+            if (bounds != null) m.animateCamera(CameraUpdateFactory.newLatLngBounds(bounds, 40.dp.roundToPx(), top, 40.dp.roundToPx(), bottom), 900)
+            else if (one != null) m.animateCamera(CameraUpdateFactory.newLatLngZoom(one, 11.5), 900)
+        }
+        onPendingHandled()
+    }
     // Encuadre: toda España al inicio; al elegir comunidad, se ajusta a ella. Deja libre la cabecera.
     var framed by remember { mutableStateOf(false) }
     LaunchedEffect(region, styleReady) {
@@ -453,12 +493,13 @@ fun MapScreen(
         MapContainer(
             context, dark,
             onMap = { m, ready -> map = m; styleReady = ready },
-            onTap = { trainHit, stationHit, regionHit ->
+            onTap = { trainHit, stationHit, regionHit, critHit ->
                 when {
-                    trainHit != null -> { selectedId = trainHit; station = null }
+                    trainHit != null -> { selectedId = trainHit; station = null; openSignal = null }
+                    critHit != null -> signals.firstOrNull { it.id == critHit }?.let { openSignal = it; selectedId = null; station = null }
                     stationHit != null -> stations.firstOrNull { it.id == stationHit }?.let { openStation(it, false) }
                     // Un toque en vacío cierra primero lo abierto; si no había nada, elige la comunidad tocada.
-                    selectedId != null || station != null -> { selectedId = null; station = null }
+                    selectedId != null || station != null || openSignal != null -> { selectedId = null; station = null; openSignal = null }
                     regionHit != null -> regions.firstOrNull { it.id == regionHit }?.let { onRegion(it) }
                 }
             },
@@ -473,14 +514,19 @@ fun MapScreen(
             Spacer(Modifier.height(8.dp))
             RegionRow(regions, region, onPick = { onRegion(it); station = null; selectedId = null })
             Spacer(Modifier.weight(1f))
+            if (shownSignals.isNotEmpty() && selected == null && station == null && openSignal == null) {
+                CriticalChip(shownSignals.size, highlighted.isNotEmpty(), onClear = { highlighted = emptyList() })
+                Spacer(Modifier.height(6.dp))
+            }
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Bottom) {
                 StatusLine(dataTimeSec, now, error)
                 Spacer(Modifier.weight(1f))
                 // La leyenda se oculta mientras hay una ficha abierta, para no taparla
-                if (selected == null && station == null) MapLegend()
+                if (selected == null && station == null && openSignal == null) MapLegend()
             }
             Spacer(Modifier.height(8.dp))
             when {
+                openSignal != null -> openSignal?.let { sg -> SignalCardOnMap(sg, onClose = { openSignal = null }) }
                 selected != null -> TrainCard(selected, onClose = { selectedId = null })
                 station != null -> station?.let { st ->
                     StationSheet(
@@ -541,7 +587,7 @@ private fun MapContainer(
     context: Context,
     dark: Boolean,
     onMap: (MapLibreMap, Boolean) -> Unit,
-    onTap: (trainId: String?, stationId: String?, regionId: String?) -> Unit,
+    onTap: (trainId: String?, stationId: String?, regionId: String?, criticalId: String?) -> Unit,
 ) {
     val lifecycle = LocalLifecycleOwner.current.lifecycle
     // El oyente de toques se crea una sola vez: sin esto se quedaría con la lista de estaciones y comunidades vacía del primer instante.
@@ -562,9 +608,12 @@ private fun MapContainer(
                     // Margen de toque mayor para las estaciones (son más pequeñas).
                     val box = RectF(p.x - 24f, p.y - 24f, p.x + 24f, p.y + 24f)
                     val station = if (train == null) m.queryRenderedFeatures(box, AL_LAYER, ST_LAYER).firstOrNull()?.getStringProperty("id") else null
-                    val regionId = if (train == null && station == null) m.queryRenderedFeatures(p, RG_FILL).firstOrNull()?.getStringProperty("id") else null
-                    currentOnTap(train, station, regionId)
-                    train != null || station != null || regionId != null
+                    // Tramo/puntos de una alerta crítica (margen amplio: la línea es fina)
+                    val critBox = RectF(p.x - 32f, p.y - 32f, p.x + 32f, p.y + 32f)
+                    val crit = if (train == null && station == null) m.queryRenderedFeatures(critBox, CriticalMap.CORE, CriticalMap.PT).firstOrNull()?.getStringProperty("id") else null
+                    val regionId = if (train == null && station == null && crit == null) m.queryRenderedFeatures(p, RG_FILL).firstOrNull()?.getStringProperty("id") else null
+                    currentOnTap(train, station, regionId, crit)
+                    train != null || station != null || crit != null || regionId != null
                 }
                 mapRef = m
             }
@@ -734,6 +783,47 @@ private fun TrainCard(t: Train, onClose: () -> Unit) {
                 },
                 color = Gray400, fontSize = 11.sp, modifier = Modifier.padding(top = 4.dp),
             )
+        }
+    }
+}
+
+/** Indicador de que hay alertas críticas iluminadas en el mapa; con una ✕ para quitar el resaltado si se pidió ver alguna. */
+@Composable
+private fun CriticalChip(count: Int, highlighted: Boolean, onClear: () -> Unit) {
+    val a = pulse(0.4f, 1f, 650)
+    Row(
+        Modifier.clip(RoundedCornerShape(50)).background(Gray950.copy(alpha = 0.94f))
+            .border(BorderStroke(1.5.dp, LevelRed.copy(alpha = a)), RoundedCornerShape(50)).padding(horizontal = 12.dp, vertical = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(Modifier.size(9.dp).clip(CircleShape).background(LevelRed.copy(alpha = a)))
+        Spacer(Modifier.width(8.dp))
+        Text(
+            if (highlighted) (if (count == 1) "Alerta resaltada" else "$count alertas resaltadas")
+            else (if (count == 1) "1 alerta crítica en el mapa" else "$count alertas críticas en el mapa"),
+            color = AndenWhite, fontSize = 12.sp, fontWeight = FontWeight.Bold,
+        )
+        if (highlighted) Text("✕", color = Gray400, fontSize = 15.sp, modifier = Modifier.clickable(onClick = onClear).padding(start = 10.dp))
+    }
+}
+
+/** Ficha de una alerta tocada en el mapa. */
+@Composable
+private fun SignalCardOnMap(sg: SafetySignal, onClose: () -> Unit) {
+    val color = if (sg.level == "critical") LevelRed else if (sg.level == "warning") LevelAmber else Gray400
+    Surface(shape = RoundedCornerShape(18.dp), color = Gray800, border = BorderStroke(1.5.dp, color.copy(alpha = 0.8f))) {
+        Column(Modifier.fillMaxWidth().padding(16.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(Modifier.size(12.dp).clip(CircleShape).background(color))
+                Spacer(Modifier.width(10.dp))
+                Text(sg.title, color = AndenWhite, fontSize = 17.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+                Text("✕", color = Gray400, fontSize = 18.sp, modifier = Modifier.clickable(onClick = onClose).padding(4.dp))
+            }
+            Text(if (sg.level == "critical") "CRÍTICO" else if (sg.level == "warning") "ATENCIÓN" else "INFORMACIÓN", color = color, fontSize = 11.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = 1.sp, modifier = Modifier.padding(top = 4.dp))
+            Text(sg.detail, color = AndenWhite, fontSize = 13.sp, lineHeight = 18.sp, modifier = Modifier.padding(top = 6.dp))
+            val where = sg.segments.size
+            if (where > 0) Text(if (where == 1) "Tramo afectado marcado en el mapa" else "$where tramos afectados marcados en el mapa", color = Gray400, fontSize = 12.sp, modifier = Modifier.padding(top = 6.dp))
+            Text("Datos abiertos, orientativos: sigue siempre las indicaciones del operador.", color = Gray400, fontSize = 11.sp, modifier = Modifier.padding(top = 6.dp))
         }
     }
 }

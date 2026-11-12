@@ -29,6 +29,7 @@ import java.util.concurrent.TimeUnit
 object SafetyNotifier {
     const val CHANNEL = "seguridad_critica"
     const val EXTRA_SECTION = "section"
+    const val EXTRA_SIGNAL = "signal"
     private const val PREFS = "anden"
     private const val KEY_ENABLED = "notify_critical"
     private const val KEY_SEEN = "notified_signals"
@@ -76,7 +77,8 @@ object SafetyNotifier {
                 c, s.id.hashCode(),
                 Intent(c, MainActivity::class.java)
                     .addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP)
-                    .putExtra(EXTRA_SECTION, "Safety"),
+                    .putExtra(EXTRA_SECTION, "Map")
+                    .putExtra(EXTRA_SIGNAL, s.id),
                 PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
             )
             val n = NotificationCompat.Builder(c, CHANNEL)
@@ -92,6 +94,17 @@ object SafetyNotifier {
             runCatching { NotificationManagerCompat.from(c).notify(s.id.hashCode(), n) }.onFailure { android.util.Log.w("AndenNotif", "no se pudo notificar: ${it.message}") }
         }
         prefs(c).edit().putStringSet(KEY_SEEN, seen.map { "${it.key}|${it.value}" }.toSet()).apply()
+    }
+
+    /** Notificación local de prueba (comprueba permiso, canal y pantalla; no pasa por el push). */
+    fun testNotification(c: Context) {
+        if (!hasPermission(c)) { android.widget.Toast.makeText(c, "Falta el permiso de notificaciones: actívalo en los ajustes del móvil", android.widget.Toast.LENGTH_LONG).show(); return }
+        ensureChannel(c)
+        val open = PendingIntent.getActivity(c, 1, Intent(c, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP), PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
+        val n = NotificationCompat.Builder(c, CHANNEL).setSmallIcon(R.drawable.ic_stat_safety)
+            .setContentTitle("Prueba de notificación").setContentText("Si ves esto, las notificaciones de Andén funcionan en este móvil.")
+            .setPriority(NotificationCompat.PRIORITY_HIGH).setAutoCancel(true).setContentIntent(open).build()
+        runCatching { NotificationManagerCompat.from(c).notify(7001, n) }
     }
 
     /** Programa (o mantiene) la comprobación periódica en segundo plano. */

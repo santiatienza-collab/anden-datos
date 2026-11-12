@@ -1,6 +1,7 @@
 package com.example.tren4you
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -82,12 +83,14 @@ fun AlertsContent(
     regions: List<Region>,
     region: Region?,
     onRegion: (Region?) -> Unit,
+    critical: Map<String, SafetySignal> = emptyMap(),
+    onLocate: (String) -> Unit = {},
 ) {
     var category by remember { mutableStateOf<AlertCategory?>(null) }
-    val shown = remember(alerts, region, category) {
+    val shown = remember(alerts, region, category, critical) {
         alerts.filter { (region == null || region.id in it.regions) && (category == null || it.category == category) }
             // Primero los activos y, dentro de cada grupo, los más graves.
-            .sortedWith(compareBy<AlertItem> { !it.active }.thenBy { severityRank(it) })
+            .sortedWith(compareBy<AlertItem> { !it.active }.thenBy { if (it.id in critical) -1 else severityRank(it) })
     }
 
     Column(Modifier.fillMaxWidth()) {
@@ -125,7 +128,7 @@ fun AlertsContent(
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 // Clave con el índice: Renfe llega a repetir el id de un aviso, y una clave duplicada cierra la app.
-                itemsIndexed(shown, key = { i, a -> "${a.id}#$i" }) { _, a -> AlertCard(a) }
+                itemsIndexed(shown, key = { i, a -> "${a.id}#$i" }) { _, a -> AlertCard(a, critical[a.id], onLocate) }
                 item { Spacer(Modifier.height(8.dp)) }
             }
         }
@@ -133,9 +136,15 @@ fun AlertsContent(
 }
 
 @Composable
-private fun AlertCard(a: AlertItem) {
-    val tint = severityColor(a)
-    Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Gray900).padding(12.dp), verticalAlignment = Alignment.Top) {
+private fun AlertCard(a: AlertItem, sig: SafetySignal?, onLocate: (String) -> Unit) {
+    val tint = if (sig != null) LevelRed else severityColor(a)
+    val neon = if (sig != null) pulse(0.45f, 1f, 650) else 0f
+    val shape = RoundedCornerShape(14.dp)
+    Row(
+        Modifier.fillMaxWidth().then(if (sig != null) Modifier.border(androidx.compose.foundation.BorderStroke(1.5.dp, LevelRed.copy(alpha = neon)), shape) else Modifier)
+            .clip(shape).background(Gray900).padding(12.dp),
+        verticalAlignment = Alignment.Top,
+    ) {
         Box(
             Modifier.size(36.dp).clip(RoundedCornerShape(10.dp)).background(tint.copy(alpha = 0.16f)),
             contentAlignment = Alignment.Center,
@@ -148,6 +157,13 @@ private fun AlertCard(a: AlertItem) {
                 Spacer(Modifier.height(2.dp))
             }
             Text(a.text, color = AndenWhite, fontSize = 13.sp, lineHeight = 18.sp)
+            if (sig != null) {
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    "Ver tramo afectado en el mapa", color = AndenWhite, fontSize = 12.sp, fontWeight = FontWeight.Bold,
+                    modifier = Modifier.clip(RoundedCornerShape(50)).background(LevelRed).clickable { onLocate(sig.id) }.padding(horizontal = 14.dp, vertical = 7.dp),
+                )
+            }
             val chips = a.lines + a.stationNames
             if (chips.isNotEmpty()) {
                 Spacer(Modifier.height(8.dp))

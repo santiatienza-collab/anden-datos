@@ -20,7 +20,7 @@ class AndenMessagingService : FirebaseMessagingService() {
                 SafetySignal(
                     id = id, kind = d["kind"].orEmpty(), level = d["level"] ?: "critical",
                     title = d["title"] ?: "Alerta crítica", detail = d["detail"].orEmpty(),
-                    lat = null, lon = null, tripIds = emptyList(),
+                    lat = d["lat"]?.toDoubleOrNull(), lon = d["lon"]?.toDoubleOrNull(), tripIds = emptyList(),
                 ),
             ),
         )
