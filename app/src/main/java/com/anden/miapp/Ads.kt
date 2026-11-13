@@ -28,7 +28,6 @@ import com.google.android.gms.ads.AdLoader
 import com.google.android.gms.ads.AdRequest
 import com.google.android.gms.ads.FullScreenContentCallback
 import com.google.android.gms.ads.LoadAdError
-import com.google.android.gms.ads.MobileAds
 import com.google.android.gms.ads.appopen.AppOpenAd
 import com.google.android.gms.ads.nativead.MediaView
 import com.google.android.gms.ads.nativead.NativeAd
@@ -39,11 +38,12 @@ import com.google.android.gms.ads.nativead.NativeAdView
  * de tocar. Antes de publicar hay que sustituirlos por los de la cuenta real (y el ID de aplicación del manifiesto).
  */
 object Ads {
+    /** true cuando el consentimiento permite pedir anuncios (ver [Consent]); hasta entonces no se carga ninguno. */
+    var ready by mutableStateOf(false)
+
     const val NATIVE_TEST = "ca-app-pub-3940256099942544/2247696110"
     const val APP_OPEN_TEST = "ca-app-pub-3940256099942544/9257395921"
 }
-
-fun initAds(context: Context) = MobileAds.initialize(context) {}
 
 /**
  * Anuncio de carga (apertura de la app): se muestra como máximo UNA vez por ejecución, al volver a la app desde segundo plano.
@@ -60,7 +60,7 @@ class AppOpenAdManager(private val activity: Activity) {
     private fun fresh() = ad != null && System.currentTimeMillis() - loadedAt < 3 * 3_600_000L
 
     fun load() {
-        if (shown || loading || fresh()) return
+        if (!Ads.ready || shown || loading || fresh()) return
         ad = null
         loading = true
         AppOpenAd.load(activity, Ads.APP_OPEN_TEST, AdRequest.Builder().build(), object : AppOpenAd.AppOpenAdLoadCallback() {
@@ -98,6 +98,7 @@ private fun Context.dp(v: Int) = (v * resources.displayMetrics.density).toInt()
 fun rememberNativeAd(): NativeAd? {
     var nativeAd by remember { mutableStateOf<NativeAd?>(null) }
     val context = LocalContext.current
+    if (!Ads.ready) return null // sin consentimiento (o aún sin respuesta) no se pide ningún anuncio
     DisposableEffect(Unit) {
         val loader = AdLoader.Builder(context, Ads.NATIVE_TEST)
             .forNativeAd { nativeAd = it }

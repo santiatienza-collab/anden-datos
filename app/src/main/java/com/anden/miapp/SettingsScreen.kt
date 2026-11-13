@@ -139,6 +139,18 @@ fun SettingsScreen(dark: Boolean, onDark: (Boolean) -> Unit, notify: Boolean, on
             }
         }
 
+        val activity = androidx.compose.ui.platform.LocalContext.current as? android.app.Activity
+        if (activity != null && Consent.privacyOptionsRequired(activity)) {
+            Section("Privacidad") {
+                Text("Puedes revisar o cambiar tu decisión sobre los anuncios personalizados cuando quieras.", color = Gray400, fontSize = 12.sp, lineHeight = 17.sp)
+                Spacer(Modifier.height(10.dp))
+                Text(
+                    "Preferencias de anuncios", color = Gray950, fontSize = 12.sp, fontWeight = FontWeight.Bold,
+                    modifier = Modifier.clip(RoundedCornerShape(50)).background(AndenYellow).clickable { Consent.showPrivacyOptions(activity) }.padding(horizontal = 14.dp, vertical = 8.dp),
+                )
+            }
+        }
+
         Section("Estado de los datos") {
             Text(
                 "Los datos se actualizan cada pocos minutos desde GitHub; la antigüedad que ves es la de la última actualización.",

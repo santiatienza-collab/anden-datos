@@ -36,7 +36,6 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         val dark = SystemBarStyle.dark(Color.TRANSPARENT)
         enableEdgeToEdge(statusBarStyle = dark, navigationBarStyle = dark)
-        initAds(this)
         startSection = intent?.getStringExtra(SafetyNotifier.EXTRA_SECTION)
         startSignal = intent?.getStringExtra(SafetyNotifier.EXTRA_SIGNAL)
         SafetyNotifier.ensureChannel(this)
@@ -46,7 +45,9 @@ class MainActivity : ComponentActivity() {
             getSharedPreferences("anden", MODE_PRIVATE).edit().putBoolean("asked_notif", true).apply()
             requestNotificationPermission()
         }
-        appOpen = AppOpenAdManager(this).also { it.load() }
+        appOpen = AppOpenAdManager(this)
+        // Consentimiento de anuncios (UMP): los anuncios solo se piden cuando está permitido
+        Consent.start(this) { appOpen.load() }
         setContent { Tren4youTheme { MainScreen(startSection, startSignal) { startSection = null; startSignal = null } } }
     }
 
