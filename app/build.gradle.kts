@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
@@ -24,8 +26,26 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
+    // Firma de publicación: las credenciales NO están en el repositorio. Se leen de keystore.properties (raíz del proyecto)
+    // o de ~/.android/anden-keystore.properties. Sin ese fichero, el release se compila sin firmar.
+    val keystoreProps = Properties().apply {
+        listOf(rootProject.file("keystore.properties"), File(System.getProperty("user.home"), ".android/anden-keystore.properties"))
+            .firstOrNull { it.exists() }?.inputStream()?.use { load(it) }
+    }
+    signingConfigs {
+        if (keystoreProps.getProperty("storeFile") != null) {
+            create("release") {
+                storeFile = file(keystoreProps.getProperty("storeFile"))
+                storePassword = keystoreProps.getProperty("storePassword")
+                keyAlias = keystoreProps.getProperty("keyAlias")
+                keyPassword = keystoreProps.getProperty("keyPassword")
+            }
+        }
+    }
+
     buildTypes {
         release {
+            signingConfigs.findByName("release")?.let { signingConfig = it }
             optimization {
                 enable = false
             }
@@ -55,6 +75,7 @@ dependencies {
     implementation(libs.maplibre.android)
     implementation(libs.play.services.ads)
     implementation(libs.androidx.work.runtime)
+    implementation("androidx.fragment:fragment:1.8.5") // evita una versión antigua (<1.3) arrastrada por otra librería: lint la rechaza en release
     implementation(platform(libs.firebase.bom))
     implementation(libs.firebase.messaging)
     testImplementation(libs.junit)

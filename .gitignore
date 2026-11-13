@@ -33,3 +33,8 @@ node_modules/
 app/google-services.json
 /tools/geo/cache/
 /tools/geo/node_modules/
+
+# Claves de firma (nunca al repositorio)
+keystore.properties
+*.jks
+*.keystore
