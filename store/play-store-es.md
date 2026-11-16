@@ -11,14 +11,16 @@ Retrasos, incidencias y alertas de seguridad de trenes en España, en un mapa.
 
 ## Descripción completa
 
-**Andén monitoriza los retrasos y las incidencias de la red ferroviaria española con datos oficiales abiertos de los operadores, y te da información útil de accesibilidad de las estaciones.**
+**Andén muestra los retrasos y las incidencias de la red ferroviaria española con los datos abiertos que publican los operadores, y te da información útil de accesibilidad de las estaciones.**
 
-Abre la app y ves, en un mapa de España, cada tren con un color según su retraso: verde si va puntual, naranja entre 5 y 14 minutos, rojo con 15 minutos o más o si está cancelado. Debajo, una lista con el detalle de los retrasos: minutos, tren, ruta, última parada, comunidad y compañía.
+**Aplicación independiente: Andén NO es una aplicación oficial ni representa a ninguna entidad pública, y no está afiliada a Renfe, Adif ni a ningún operador u organismo.** La información procede de las fuentes oficiales que se enlazan al final de esta descripción.
+
+En un mapa de España, cada tren aparece con un color según su retraso: verde si va puntual, naranja entre 5 y 14 minutos, rojo con 15 minutos o más o cancelado.
 
 **RETRASOS**
-• Mapa con todos los trenes y su retraso, filtrable por comunidad autónoma y por compañía.
-• Lista de retrasos ordenada por gravedad: cancelados, graves y moderados.
-• Cifras clave: trenes en circulación, porcentaje con retraso, retraso medio y máximo, y comunidades más afectadas.
+• Trenes y su retraso, filtrables por comunidad autónoma y compañía.
+• Lista de retrasos por gravedad: cancelados, graves y moderados.
+• Cifras clave: trenes en circulación, retraso medio y máximo, y comunidades más afectadas.
 
 **INCIDENCIAS Y AVISOS**
 • Avisos de servicio por comunidad: incidencias, huelgas, obras y servicios alternativos por autobús.
@@ -27,29 +29,39 @@ Abre la app y ves, en un mapa de España, cada tren con un color según su retra
 **SEGURIDAD: ALERTAS Y NOTIFICACIONES CRÍTICAS**
 Una pestaña de Seguridad vigila con datos abiertos las situaciones que merecen atención y las clasifica en tres niveles: información, atención y crítico. Detecta:
 • Tren detenido en vía, fuera de estación, durante varios minutos.
-• Tren en marcha que se acerca por detrás a otro detenido, en el mismo corredor y sentido, con el tiempo estimado hasta alcanzarlo.
-• Avisos oficiales de accidente, fallo de señalización, rotura o incidencia en la vía y fallo de energía.
-• Acumulación de trenes con mucho retraso en una misma línea, señal de una posible incidencia.
-Recibe una notificación cuando aparece una alerta crítica, con la app abierta o cerrada, y desactívalas cuando quieras en Ajustes. Con la app cerrada la comprobación se hace cada pocos minutos, no al instante.
+• Tren que se acerca por detrás a otro detenido, en el mismo corredor.
+• Avisos publicados por Renfe sobre accidente, fallo de señalización, incidencia en la vía o fallo de energía.
+• Acumulación de trenes con mucho retraso en una línea (posible incidencia).
+Recibe una notificación cuando aparece una alerta crítica (puedes desactivarlas en Ajustes). No llegan al instante: dependen de la actualización de los datos.
 
-Importante: son alertas orientativas calculadas con datos públicos que llegan con minutos de retraso. No sustituyen a la señalización ni a los sistemas de seguridad del operador, ni a las indicaciones del personal ferroviario. Iryo, Ouigo y otras compañías que no publican datos abiertos no están incluidas.
+Importante: alertas orientativas, calculadas con datos públicos con minutos de retraso. No sustituyen a la señalización ni a los sistemas de seguridad del operador. Iryo, Ouigo y otras compañías sin datos abiertos no están incluidas.
 
 **ACCESIBILIDAD**
 • Ascensores y escaleras mecánicas fuera de servicio, y estaciones inaccesibles para personas con movilidad reducida, con iconos claros.
 • Filtro para ver solo las estaciones con avisos.
 
 **ESTACIONES Y HORARIOS**
-• Salidas y llegadas de cada estación con su hora prevista, la hora esperada y el retraso.
+• Salidas y llegadas de cada estación con su hora prevista y el retraso.
 • Todas las estaciones agrupadas por provincia, con buscador.
 
 **COMPAÑÍAS**
 Renfe (AVE, Avlo, Larga Distancia, Avant, Media Distancia, Cercanías y Rodalies), Euskotren, Metro Bilbao, FGC, SFM (Mallorca) y Metro de Barcelona (próximos trenes por estación).
 
 **ACTUALIZACIÓN DE LOS DATOS**
-Los datos se actualizan cada pocos minutos y la app te indica la antigüedad de lo que ves. En algunas redes no se publican retrasos en tiempo real (por ejemplo SFM en Mallorca): en ese caso verás los horarios oficiales y la posición se marca como estimada.
+Los datos se actualizan cada pocos minutos y la app indica su antigüedad. En algunas redes no hay retrasos en tiempo real (p. ej. SFM en Mallorca): se muestran los horarios y la posición se marca como estimada.
+
+**FUENTES OFICIALES DE LOS DATOS**
+• Renfe (horarios, posiciones, retrasos y avisos): https://data.renfe.com
+• Euskotren: https://opendata.euskadi.eus
+• Metro Bilbao: https://www.metrobilbao.eus
+• FGC: https://www.fgc.cat
+• TMB, metro de Barcelona: https://developer.tmb.cat
+• Consorci de Transports de Mallorca: https://www.tib.org
+• Seguridad ferroviaria (AESF): https://www.seguridadferroviaria.es
+• Mapa: © colaboradores de OpenStreetMap (https://www.openstreetmap.org) y OpenFreeMap. Límites administrativos: © EuroGeographics, Eurostat GISCO.
 
 **AVISO**
-Andén es una aplicación independiente y no está afiliada a Renfe, Adif ni a ningún operador. Los datos proceden de fuentes abiertas de cada operador y son orientativos: para decidir un viaje, consulta siempre los canales oficiales. Mapa: © colaboradores de OpenStreetMap, OpenMapTiles y OpenFreeMap. Límites administrativos: © EuroGeographics (Eurostat GISCO).
+Andén es una aplicación independiente, no oficial: no representa a ninguna entidad pública ni a ningún operador. Los datos son orientativos y pueden tener minutos de retraso: para decidir un viaje o ante cualquier duda de seguridad, consulta siempre los canales oficiales del operador y sigue las indicaciones del personal ferroviario y de los servicios de emergencia. Política de privacidad: https://santiatienza-collab.github.io/anden-privacypolicy/
 
 ## Palabras clave sugeridas
 trenes, retrasos, alertas de seguridad, incidencias ferroviarias, Renfe, Cercanías, Rodalies, AVE, horarios tren, estado de trenes, accesibilidad, ascensores estaciones

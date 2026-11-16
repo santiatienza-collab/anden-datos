@@ -45,6 +45,17 @@ import com.anden.miapp.ui.theme.LevelGreen
 import com.anden.miapp.ui.theme.LevelRed
 import kotlinx.coroutines.delay
 
+private val SOURCE_LINKS = listOf(
+    "Renfe (horarios, retrasos y avisos)" to "https://data.renfe.com",
+    "Euskotren" to "https://opendata.euskadi.eus",
+    "Metro Bilbao" to "https://www.metrobilbao.eus",
+    "FGC" to "https://www.fgc.cat",
+    "TMB (metro de Barcelona)" to "https://developer.tmb.cat",
+    "Consorci de Transports de Mallorca" to "https://www.tib.org",
+    "Seguridad ferroviaria (AESF)" to "https://www.seguridadferroviaria.es",
+    "Política de privacidad" to "https://santiatienza-collab.github.io/anden-privacypolicy/",
+)
+
 private fun sourceLabel(id: String) = when (id) {
     "renfe-gtfs-cercanias" -> "Horarios · Cercanías"
     "renfe-gtfs-ld" -> "Horarios · Larga distancia"
@@ -190,10 +201,26 @@ fun SettingsScreen(dark: Boolean, onDark: (Boolean) -> Unit, notify: Boolean, on
             Text("Andén · versión ${BuildConfig.VERSION_NAME}", color = AndenWhite, fontSize = 14.sp)
             Spacer(Modifier.height(8.dp))
             Text(
+                "Andén es una aplicación independiente y NO oficial: no representa a ninguna entidad pública ni a ningún operador, y no está afiliada a Renfe, Adif ni a ningún organismo.",
+                color = AndenWhite, fontSize = 12.sp, lineHeight = 17.sp, fontWeight = FontWeight.SemiBold,
+            )
+            Spacer(Modifier.height(8.dp))
+            Text(
                 "Datos de trenes: Renfe, Euskotren, Metro Bilbao, FGC, TMB (próximos trenes del metro de Barcelona) y Consorci de Transports de Mallorca (datos abiertos, CC BY 4.0 o equivalente). En Mallorca no hay tiempo real: las posiciones se estiman según el horario. La gravedad de los avisos se estima a partir de su texto. " +
                     "Los datos son orientativos: para decisiones de viaje consulta los canales oficiales del operador.",
                 color = Gray400, fontSize = 12.sp, lineHeight = 17.sp,
             )
+            Spacer(Modifier.height(10.dp))
+            Text("Fuentes oficiales de los datos (toca para abrir)", color = AndenWhite, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+            val ctx = androidx.compose.ui.platform.LocalContext.current
+            for ((name, url) in SOURCE_LINKS) {
+                Text(
+                    "$name · ${url.removePrefix("https://")}", color = AndenYellow, fontSize = 12.sp, lineHeight = 17.sp,
+                    modifier = Modifier.clickable {
+                        runCatching { ctx.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(url)).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)) }
+                    }.padding(vertical = 4.dp),
+                )
+            }
             Spacer(Modifier.height(8.dp))
             Text(
                 "Mapa: © OpenStreetMap contributors, OpenMapTiles y OpenFreeMap. Límites administrativos: © EuroGeographics (Eurostat GISCO).",
