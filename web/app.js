@@ -466,6 +466,8 @@ async function openStation(s) {
     '<div class="row"><button class="chip on" id="bt-dep" data-act="board" data-v="dep">Salidas</button><button class="chip" id="bt-arr" data-act="board" data-v="arr">Llegadas</button></div>' +
     table('dep', b.departures ?? []) + table('arr', b.arrivals ?? []) + '<div class="note" style="margin-top:8px">Horarios oficiales con el retraso conocido en la última actualización.</div>';
   if (mapReady && S.tab === 'map') map.flyTo({ center: [s.lon, s.lat], zoom: Math.max(map.getZoom(), 12) });
+  // Para la lectura en voz alta (voz.js): estación abierta y su tablero
+  window.dispatchEvent(new CustomEvent('station-board', { detail: { station: s, board: b } }));
 }
 
 // ---------- Seguridad ----------

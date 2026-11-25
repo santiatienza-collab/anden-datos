@@ -194,7 +194,8 @@ private fun spokenText(raw: String, max: Int = 260): String {
         val cut = t.lastIndexOf('.', max).takeIf { it > 80 } ?: t.lastIndexOf(' ', max).takeIf { it > 0 } ?: max
         t = t.substring(0, cut).trimEnd(',', ';', ' ') + "."
     }
-    return t
+    // Siempre acaba en punto: así la voz hace una pausa antes de la frase siguiente
+    return if (t.endsWith(".") || t.endsWith("!") || t.endsWith("?")) t else "$t."
 }
 
 private fun categoryLead(c: AlertCategory) = when (c) {

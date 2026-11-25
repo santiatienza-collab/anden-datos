@@ -59,7 +59,7 @@ class VoiceTest {
         assertTrue(text, text.startsWith("Estación de Madrid-Atocha Cercanías."))
         assertTrue(text, "2 ascensores fuera de servicio" in text)
         assertTrue(text, "1 escalera mecánica fuera de servicio" in text)
-        assertTrue(text, "Huelga: Huelga de maquinistas" in text)
+        assertTrue(text, "Huelga: Huelga de maquinistas el lunes." in text) // acaba en punto aunque el aviso no lo traiga
         assertTrue("el enlace y la etiqueta no se leen", "https" !in text && "#" !in text)
         assertTrue("el aviso de otra línea (C9) no se lee", "C9" !in text)
         assertTrue(text, "1 cancelada" in text)
