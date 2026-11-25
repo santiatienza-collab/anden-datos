@@ -552,11 +552,14 @@ fun MapScreen(
                 }
             }
             Spacer(Modifier.weight(1f))
+            // Abajo a la izquierda (a la derecha está el botón del micrófono): el aviso de datos antiguos, si lo hay, y la leyenda
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Bottom) {
-                StatusLine(dataTimeSec, now, error)
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    StatusLine(dataTimeSec, now, error)
+                    // La leyenda se oculta mientras hay una ficha abierta, para no taparla
+                    if (selected == null && station == null && openSignal == null) MapLegend()
+                }
                 Spacer(Modifier.weight(1f))
-                // La leyenda se oculta mientras hay una ficha abierta, para no taparla
-                if (selected == null && station == null && openSignal == null) Box(Modifier.padding(bottom = if (micInset) 62.dp else 0.dp)) { MapLegend() }
             }
             Spacer(Modifier.height(8.dp))
             when {

@@ -16,8 +16,8 @@ android {
         applicationId = "com.anden.miapp"
         minSdk = 24
         targetSdk = 37
-        versionCode = 4
-        versionName = "1.1"
+        versionCode = 5
+        versionName = "1.1.1"
 
         // Dirección de los datos (GitHub Pages). Se cambia con -Panden.backend=https://usuario.github.io/repositorio
         val backend = providers.gradleProperty("anden.backend").orElse("https://santiatienza-collab.github.io/anden-datos").get()
