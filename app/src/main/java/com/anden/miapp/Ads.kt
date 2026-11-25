@@ -28,81 +28,90 @@ import com.google.android.gms.ads.AdLoader
 import com.google.android.gms.ads.AdRequest
 import com.google.android.gms.ads.FullScreenContentCallback
 import com.google.android.gms.ads.LoadAdError
-import com.google.android.gms.ads.appopen.AppOpenAd
+import com.google.android.gms.ads.interstitial.InterstitialAd
+import com.google.android.gms.ads.interstitial.InterstitialAdLoadCallback
 import com.google.android.gms.ads.nativead.MediaView
 import com.google.android.gms.ads.nativead.NativeAd
 import com.google.android.gms.ads.nativead.NativeAdView
 
 /**
- * Anuncios de AdMob. Todos los identificadores son los de PRUEBA que publica Google: no generan ingresos y son seguros
- * de tocar. Antes de publicar hay que sustituirlos por los de la cuenta real (y el ID de aplicación del manifiesto).
+ * Anuncios de AdMob. Por defecto se usan los identificadores de PRUEBA de Google (no generan ingresos y son seguros de tocar).
+ * Los de la cuenta real se activan SOLO al compilar con `-Panden.realAds=true` (también cambia el ID de aplicación del manifiesto).
+ * Nunca hay que tocar anuncios reales propios durante el desarrollo.
  */
 object Ads {
     /** true cuando el consentimiento permite pedir anuncios (ver [Consent]); hasta entonces no se carga ninguno. */
     var ready by mutableStateOf(false)
 
     const val NATIVE_TEST = "ca-app-pub-3940256099942544/2247696110"
-    const val APP_OPEN_TEST = "ca-app-pub-3940256099942544/9257395921"
+    const val INTERSTITIAL_TEST = "ca-app-pub-3940256099942544/1033173712"
+
+    /** Bloques reales de la cuenta de AdMob. El nativo aún no está creado: mientras sea null se sigue usando el de prueba. */
+    private const val INTERSTITIAL_REAL = "ca-app-pub-1235083363799232/6000887742"
+    private val NATIVE_REAL: String? = null
+
+    val NATIVE: String get() = if (BuildConfig.USE_TEST_ADS) NATIVE_TEST else NATIVE_REAL ?: NATIVE_TEST
+    val INTERSTITIAL: String get() = if (BuildConfig.USE_TEST_ADS) INTERSTITIAL_TEST else INTERSTITIAL_REAL
 }
 
 /**
- * Anuncio de carga (apertura de la app): se muestra como máximo UNA vez cada 24 horas, aunque la app se abra y se cierre muchas
- * veces (la hora del último se guarda en el móvil, así que sobrevive a que Android cierre la app). Sale al volver a la app desde
- * segundo plano. Mientras no toque, ni siquiera se pide el anuncio. Se precarga y se vuelve a pedir si falló o caducó (a las 4 h).
+ * Anuncio intersticial: sale UNA sola vez por ejecución, cuando la app lleva 20 minutos de uso acumulado (sin contar el tiempo en
+ * segundo plano), y solo en una pausa natural (al cambiar de pestaña), nunca mientras el usuario toca el mapa. Sustituye al anuncio de
+ * carga de apertura. Se precarga al conceder el consentimiento y se vuelve a pedir si falló o caducó (Google los invalida a la hora).
  */
-class AppOpenAdManager(private val activity: Activity) {
-    private var ad: AppOpenAd? = null
+class InterstitialManager(private val activity: Activity) {
+    private var ad: InterstitialAd? = null
     private var loadedAt = 0L
     private var loading = false
     private var shown = false
     private var retries = 0
     private val handler = android.os.Handler(android.os.Looper.getMainLooper())
-    private val prefs = activity.getSharedPreferences("anden", Context.MODE_PRIVATE)
 
-    /** true si ya se mostró uno en las últimas 24 h (también tras reiniciar la app). */
-    private fun cooledDown(): Boolean {
-        val last = prefs.getLong(KEY_LAST_SHOWN, 0L)
-        val now = System.currentTimeMillis()
-        return last in 1..now && now - last < MIN_INTERVAL_MS
-    }
+    private var usedMs = 0L      // uso acumulado en primer plano durante esta ejecución
+    private var startedAt = 0L   // 0 = la app está en segundo plano
 
-    private fun fresh() = ad != null && System.currentTimeMillis() - loadedAt < 3 * 3_600_000L
+    fun onForeground() { if (startedAt == 0L) startedAt = android.os.SystemClock.elapsedRealtime() }
+    fun onBackground() { if (startedAt != 0L) { usedMs += android.os.SystemClock.elapsedRealtime() - startedAt; startedAt = 0L } }
+    private fun used() = usedMs + if (startedAt != 0L) android.os.SystemClock.elapsedRealtime() - startedAt else 0L
+
+    private fun fresh() = ad != null && System.currentTimeMillis() - loadedAt < 50 * 60_000L
 
     fun load() {
-        if (!Ads.ready || shown || loading || fresh() || cooledDown()) return
+        if (!Ads.ready || shown || loading || fresh()) return
         ad = null
         loading = true
-        AppOpenAd.load(activity, Ads.APP_OPEN_TEST, AdRequest.Builder().build(), object : AppOpenAd.AppOpenAdLoadCallback() {
-            override fun onAdLoaded(ad: AppOpenAd) {
-                this@AppOpenAdManager.ad = ad; loadedAt = System.currentTimeMillis(); loading = false; retries = 0
-                android.util.Log.i("AndenAds", "apertura cargado")
+        InterstitialAd.load(activity, Ads.INTERSTITIAL, AdRequest.Builder().build(), object : InterstitialAdLoadCallback() {
+            override fun onAdLoaded(ad: InterstitialAd) {
+                this@InterstitialManager.ad = ad; loadedAt = System.currentTimeMillis(); loading = false; retries = 0
+                android.util.Log.i("AndenAds", "intersticial cargado")
             }
             override fun onAdFailedToLoad(error: LoadAdError) {
                 loading = false
-                android.util.Log.w("AndenAds", "apertura: ${error.code} ${error.message}")
+                android.util.Log.w("AndenAds", "intersticial: ${error.code} ${error.message}")
                 if (retries++ < 4) handler.postDelayed({ load() }, 15_000L * retries)
             }
         })
     }
 
-    /** Se llama al volver a la app. Si hay anuncio listo y todavía no se ha mostrado ninguno, lo muestra; nunca dos veces. */
-    fun showIfReady() {
-        if (shown || cooledDown()) return
+    /** Se llama en una pausa natural de la navegación (cambio de pestaña). Muestra el anuncio si ya se cumplieron los 20 min de uso. */
+    fun maybeShow() {
+        if (shown || !Ads.ready || used() < AFTER_MS) return
         val a = ad.takeIf { fresh() }
-        if (a == null) { android.util.Log.i("AndenAds", "apertura: no hay anuncio listo al volver"); load(); return }
+        if (a == null) { load(); return }
         shown = true
         ad = null
-        prefs.edit().putLong(KEY_LAST_SHOWN, System.currentTimeMillis()).apply()
         a.fullScreenContentCallback = object : FullScreenContentCallback() {
-            override fun onAdFailedToShowFullScreenContent(error: AdError) { shown = false; prefs.edit().remove(KEY_LAST_SHOWN).apply(); load(); android.util.Log.w("AndenAds", "apertura no se pudo mostrar: ${error.message}") }
+            override fun onAdFailedToShowFullScreenContent(error: AdError) {
+                shown = false; load(); android.util.Log.w("AndenAds", "intersticial no se pudo mostrar: ${error.message}")
+            }
         }
-        android.util.Log.i("AndenAds", "apertura: mostrando")
+        android.util.Log.i("AndenAds", "intersticial: mostrando")
         a.show(activity)
     }
 
-    private companion object {
-        const val KEY_LAST_SHOWN = "app_open_ad_last_shown"
-        const val MIN_INTERVAL_MS = 24 * 3_600_000L
+    companion object {
+        /** Uso acumulado antes de mostrar el anuncio. */
+        const val AFTER_MS = 20 * 60_000L
     }
 }
 
@@ -115,7 +124,7 @@ fun rememberNativeAd(): NativeAd? {
     val context = LocalContext.current
     if (!Ads.ready) return null // sin consentimiento (o aún sin respuesta) no se pide ningún anuncio
     DisposableEffect(Unit) {
-        val loader = AdLoader.Builder(context, Ads.NATIVE_TEST)
+        val loader = AdLoader.Builder(context, Ads.NATIVE)
             .forNativeAd { nativeAd = it }
             .withAdListener(object : AdListener() {
                 override fun onAdFailedToLoad(error: LoadAdError) { android.util.Log.w("AndenAds", "nativo: ${error.code} ${error.message}") }
@@ -146,7 +155,7 @@ private fun buildNativeView(c: Context): NativeAdView {
         background = GradientDrawable().apply { setColor(0xFF2A2A2E.toInt()); cornerRadius = c.dp(14).toFloat() }
     }
     val tag = TextView(c).apply {
-        text = "Anuncio · prueba"; setTextColor(0xFF1C1C1F.toInt()); textSize = 10f; typeface = Typeface.DEFAULT_BOLD
+        text = if (BuildConfig.USE_TEST_ADS) "Anuncio · prueba" else "Anuncio"; setTextColor(0xFF1C1C1F.toInt()); textSize = 10f; typeface = Typeface.DEFAULT_BOLD
         setBackgroundColor(0xFFFFD60A.toInt()); setPadding(c.dp(6), c.dp(1), c.dp(6), c.dp(1))
     }
     val head = LinearLayout(c).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }

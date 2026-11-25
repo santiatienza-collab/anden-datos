@@ -100,7 +100,10 @@ fun MainScreen(openSection: String? = null, openSignal: String? = null, onOpened
     // Petición de "ver en el mapa" una o varias alertas (bocadillo, Seguridad, Avisos o notificación)
     var focusReq by remember { mutableStateOf<FocusRequest?>(null) }
     val visited = remember { mutableStateListOf<Section>() }
-    LaunchedEffect(section) { if (section != Section.Map && section !in visited) visited.add(section) }
+    LaunchedEffect(section) {
+        if (section != Section.Map && section !in visited) visited.add(section)
+        (context as? MainActivity)?.onNaturalBreak() // cambio de pestaña: pausa natural para el intersticial (tras 20 min de uso)
+    }
     var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
 
     // Comunidades: se reintenta hasta que haya conexión.

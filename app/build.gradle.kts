@@ -23,6 +23,11 @@ android {
         val backend = providers.gradleProperty("anden.backend").orElse("https://santiatienza-collab.github.io/anden-datos").get()
         buildConfigField("String", "BACKEND_URL", "\"$backend\"")
 
+        // Anuncios: de PRUEBA salvo que se compile con -Panden.realAds=true (para la versión de producción)
+        val realAds = providers.gradleProperty("anden.realAds").map { it.toBoolean() }.orElse(false).get()
+        buildConfigField("boolean", "USE_TEST_ADS", (!realAds).toString())
+        manifestPlaceholders["admobAppId"] = if (realAds) "ca-app-pub-1235083363799232~9440741207" else "ca-app-pub-3940256099942544~3347511713"
+
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 

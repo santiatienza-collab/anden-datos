@@ -37,8 +37,10 @@ class MainActivity : ComponentActivity() {
         if (Build.VERSION.SDK_INT >= 33 && !SafetyNotifier.hasPermission(this)) askNotifications.launch(Manifest.permission.POST_NOTIFICATIONS)
     }
 
-    private lateinit var appOpen: AppOpenAdManager
-    private var wasInBackground = false
+    private lateinit var interstitial: InterstitialManager
+
+    /** Pausa natural de la navegación (cambio de pestaña): si ya hay 20 min de uso, puede salir el intersticial. */
+    fun onNaturalBreak() = interstitial.maybeShow()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -59,9 +61,9 @@ class MainActivity : ComponentActivity() {
             getSharedPreferences("anden", MODE_PRIVATE).edit().putBoolean("asked_notif", true).apply()
             requestNotificationPermission()
         }
-        appOpen = AppOpenAdManager(this)
+        interstitial = InterstitialManager(this)
         // Consentimiento de anuncios (UMP): los anuncios solo se piden cuando está permitido
-        Consent.start(this) { appOpen.load() }
+        Consent.start(this) { interstitial.load() }
         setContent { Tren4youTheme { MainScreen(startSection, startSignal) { startSection = null; startSignal = null } } }
     }
 
@@ -78,20 +80,13 @@ class MainActivity : ComponentActivity() {
         Speaker.stop()
     }
 
-    override fun onStop() {
-        super.onStop()
-        wasInBackground = true
-        appOpen.load() // deja uno listo para cuando el usuario vuelva
+    override fun onStart() {
+        super.onStart()
+        interstitial.onForeground()
     }
 
-    // Al volver a la app desde segundo plano: anuncio de carga, una sola vez por ejecución.
-    // Se hace en onResume, no en onStart: Google rechaza mostrarlo hasta que la app está realmente en primer plano.
-    override fun onResume() {
-        super.onResume()
-        if (wasInBackground) {
-            wasInBackground = false
-            // Un instante después: el SDK solo lo permite cuando la actividad ya está en primer plano.
-            window.decorView.postDelayed({ if (lifecycle.currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.RESUMED)) appOpen.showIfReady() }, 500)
-        }
+    override fun onStop() {
+        super.onStop()
+        interstitial.onBackground()
     }
 }
