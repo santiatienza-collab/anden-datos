@@ -80,6 +80,8 @@ fun StationSheet(
     error: String?,
     onToggle: (Boolean) -> Unit,
     onClose: () -> Unit,
+    /** Si no es null (información por audio activada), muestra el botón "Escuchar" que repite la información en voz alta. */
+    onListen: (() -> Unit)? = null,
 ) {
     Surface(shape = RoundedCornerShape(20.dp), color = Gray800, border = BorderStroke(1.dp, Gray600)) {
         Column(Modifier.fillMaxWidth().heightIn(max = 460.dp).padding(16.dp)) {
@@ -89,6 +91,14 @@ fun StationSheet(
                     maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
                 Icon(Icons.Filled.Close, "Cerrar", tint = Gray400,
                     modifier = Modifier.clip(CircleShape).clickable(onClick = onClose).padding(4.dp).size(22.dp))
+            }
+
+            if (onListen != null) {
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    "🔊 Escuchar la información de la estación", color = Gray950, fontSize = 14.sp, fontWeight = FontWeight.Bold,
+                    modifier = Modifier.clip(RoundedCornerShape(50)).background(AndenYellow).clickable(onClick = onListen).padding(horizontal = 14.dp, vertical = 9.dp),
+                )
             }
 
             if (board != null && board.accessibility.any) AccessibilityStrip(board.accessibility)

@@ -24,6 +24,14 @@ class MainActivity : ComponentActivity() {
 
     private val askNotifications = registerForActivityResult(ActivityResultContracts.RequestPermission()) { }
 
+    /** Reconocimiento de voz del sistema: devuelve hasta 5 transcripciones de lo que ha dicho el usuario. */
+    private val speech = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { r ->
+        if (r.resultCode == RESULT_OK) {
+            val list = r.data?.getStringArrayListExtra(android.speech.RecognizerIntent.EXTRA_RESULTS)
+            if (!list.isNullOrEmpty()) VoiceControl.deliver(list)
+        }
+    }
+
     /** Pide el permiso de notificaciones (Android 13+) si falta. */
     fun requestNotificationPermission() {
         if (Build.VERSION.SDK_INT >= 33 && !SafetyNotifier.hasPermission(this)) askNotifications.launch(Manifest.permission.POST_NOTIFICATIONS)
@@ -38,6 +46,12 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge(statusBarStyle = dark, navigationBarStyle = dark)
         startSection = intent?.getStringExtra(SafetyNotifier.EXTRA_SECTION)
         startSignal = intent?.getStringExtra(SafetyNotifier.EXTRA_SIGNAL)
+        VoiceControl.launcher = {
+            try { speech.launch(VoiceControl.intent()) }
+            catch (e: android.content.ActivityNotFoundException) {
+                android.widget.Toast.makeText(this, "Este móvil no tiene un servicio de reconocimiento de voz disponible. Necesita la app de Google con la búsqueda por voz activada.", android.widget.Toast.LENGTH_LONG).show()
+            }
+        }
         SafetyNotifier.ensureChannel(this)
         SafetyNotifier.schedule(this)
         SafetyNotifier.syncTopic(this) // push (FCM): suscripción al tema de alertas críticas
@@ -56,6 +70,12 @@ class MainActivity : ComponentActivity() {
         setIntent(intent)
         startSection = intent.getStringExtra(SafetyNotifier.EXTRA_SECTION)
         startSignal = intent.getStringExtra(SafetyNotifier.EXTRA_SIGNAL)
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        VoiceControl.launcher = null
+        Speaker.stop()
     }
 
     override fun onStop() {

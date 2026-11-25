@@ -34,6 +34,7 @@ import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -81,6 +82,10 @@ fun MainScreen(openSection: String? = null, openSignal: String? = null, onOpened
         Section.entries.firstOrNull { it.name == openSection }?.let { section = it; if (openSignal == null) onOpened() }
     }
     var notify by remember { mutableStateOf(SafetyNotifier.enabled(context)) }
+    // Accesibilidad por voz (para personas ciegas): control por voz y lectura en audio, desactivados por defecto
+    var voiceControl by remember { mutableStateOf(VoicePrefs.voiceControl(context)) }
+    var audioInfo by remember { mutableStateOf(VoicePrefs.audioInfo(context)) }
+    var showTutorial by remember { mutableStateOf(!VoicePrefs.tutorialSeen(context)) }
     var regions by remember { mutableStateOf<List<Region>>(emptyList()) }
     var region by remember { mutableStateOf<Region?>(null) } // null = toda España
     var trains by remember { mutableStateOf<List<Train>>(emptyList()) }
@@ -135,6 +140,39 @@ fun MainScreen(openSection: String? = null, openSignal: String? = null, onOpened
         }
     }
     LaunchedEffect(Unit) { while (true) { now = System.currentTimeMillis(); delay(1_000) } }
+
+    // Control por voz: llega lo que ha dicho el usuario → se busca la estación y se abre en el mapa (que la lee en voz alta)
+    val stationsNow by rememberUpdatedState(stations)
+    val audioNow by rememberUpdatedState(audioInfo)
+    LaunchedEffect(Unit) {
+        VoiceControl.results.collect { phrases ->
+            val st = matchStation(phrases, stationsNow)
+            if (st != null) { pendingStation = st; section = Section.Map }
+            else {
+                val heard = phrases.firstOrNull().orEmpty()
+                val msg = when {
+                    stationsNow.isEmpty() -> "Los datos de las estaciones todavía se están cargando. Inténtalo de nuevo en unos segundos."
+                    heard.isBlank() -> "No he entendido la estación. Pulsa el botón del micrófono para intentarlo de nuevo."
+                    else -> "No he encontrado la estación $heard. Pulsa el botón del micrófono para intentarlo de nuevo."
+                }
+                if (audioNow) Speaker.speak(context, msg) else android.widget.Toast.makeText(context, msg, android.widget.Toast.LENGTH_LONG).show()
+            }
+        }
+    }
+    fun askStation() {
+        if (audioInfo) Speaker.speak(context, "Di el nombre de la estación.") { VoiceControl.launcher?.invoke() }
+        else VoiceControl.launcher?.invoke()
+    }
+    if (showTutorial) {
+        VoiceTutorialDialog { enable ->
+            VoicePrefs.setTutorialSeen(context)
+            showTutorial = false
+            if (enable) {
+                voiceControl = true; audioInfo = true
+                VoicePrefs.setVoiceControl(context, true); VoicePrefs.setAudioInfo(context, true)
+            }
+        }
+    }
 
     // Alertas críticas: se consideran "vistas" al abrir Seguridad o al descartar el bocadillo.
     var acked by remember { mutableStateOf(setOf<String>()) }
@@ -210,6 +248,7 @@ fun MainScreen(openSection: String? = null, openSignal: String? = null, onOpened
                 onPendingHandled = { pendingStation = null; pendingTrain = null },
                 dark = dark,
                 signals = safety?.signals.orEmpty(), focus = focusReq, mapActive = section == Section.Map,
+                alerts = alerts, audio = audioInfo, micInset = voiceControl,
             )
             // Las secciones visitadas siguen montadas (ocultas con tamaño 0): así conservan la posición de lectura,
             // la búsqueda, los filtros y las ramas abiertas al cambiar de pestaña y volver.
@@ -249,10 +288,16 @@ fun MainScreen(openSection: String? = null, openSignal: String? = null, onOpened
                                 notify = it; SafetyNotifier.setEnabled(context, it)
                                 if (it) (context as? MainActivity)?.requestNotificationPermission()
                             },
+                            voiceControl = voiceControl, onVoiceControl = { voiceControl = it; VoicePrefs.setVoiceControl(context, it) },
+                            audioInfo = audioInfo, onAudioInfo = { audioInfo = it; VoicePrefs.setAudioInfo(context, it); if (!it) Speaker.stop() },
+                            onTutorial = { showTutorial = true },
                         )
                         Section.Map -> {}
                     }
                 }
+            }
+            if (voiceControl) {
+                MicButton(onClick = ::askStation, modifier = Modifier.align(Alignment.BottomEnd).padding(end = 12.dp, bottom = 10.dp))
             }
             if (unseen.isNotEmpty() && section != Section.Safety) {
                 CriticalBanner(

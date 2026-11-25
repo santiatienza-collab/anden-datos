@@ -351,6 +351,11 @@ fun MapScreen(
     signals: List<SafetySignal> = emptyList(),
     focus: FocusRequest? = null,
     mapActive: Boolean = true,
+    /** Avisos de toda la red (para leer los que afectan a las líneas de la estación) y si la información por audio está activada. */
+    alerts: List<AlertItem> = emptyList(),
+    audio: Boolean = false,
+    /** Con el control por voz activado hay un botón de micrófono abajo a la derecha: la leyenda sube para no taparse. */
+    micInset: Boolean = false,
 ) {
     val context = LocalContext.current
     val density = LocalDensity.current
@@ -409,6 +414,24 @@ fun MapScreen(
     LaunchedEffect(visibleStations, styleReady) {
         if (styleReady) map?.style?.getSourceAs<GeoJsonSource>(ST_SRC)?.setGeoJson(stationsGeoJson(visibleStations))
     }
+    // Información por audio: al abrir una estación (por voz o tocándola) se lee en voz alta, una sola vez por apertura
+    var spokenFor by remember { mutableStateOf<String?>(null) }
+    val alertsNow by rememberUpdatedState(alerts)
+    LaunchedEffect(station?.id, board, boardError, audio) {
+        val st = station
+        if (st == null) { spokenFor = null; return@LaunchedEffect }
+        if (!audio || spokenFor == st.id) return@LaunchedEffect
+        val b = board?.takeIf { it.station.id == st.id }
+        if (b != null) {
+            spokenFor = st.id
+            Speaker.speak(context, spokenSummary(st, b, alertsNow, System.currentTimeMillis() / 1000))
+        } else if (boardError != null) {
+            spokenFor = st.id
+            Speaker.speak(context, "Estación de ${st.name}. No he podido cargar la información ahora mismo. Comprueba tu conexión.")
+        }
+    }
+    LaunchedEffect(station == null) { if (station == null) Speaker.stop() }
+
     // Alertas críticas en neón: siempre las críticas y, además, las que se hayan pedido ver.
     var highlighted by remember { mutableStateOf<List<String>>(emptyList()) }
     var openSignal by remember { mutableStateOf<SafetySignal?>(null) }
@@ -529,7 +552,7 @@ fun MapScreen(
                 StatusLine(dataTimeSec, now, error)
                 Spacer(Modifier.weight(1f))
                 // La leyenda se oculta mientras hay una ficha abierta, para no taparla
-                if (selected == null && station == null && openSignal == null) MapLegend()
+                if (selected == null && station == null && openSignal == null) Box(Modifier.padding(bottom = if (micInset) 62.dp else 0.dp)) { MapLegend() }
             }
             Spacer(Modifier.height(8.dp))
             when {
@@ -539,6 +562,11 @@ fun MapScreen(
                     StationSheet(
                         board = board?.takeIf { it.station.id == st.id }, stationName = st.name, station = st, arrivals = arrivals,
                         nowSec = now / 1000, error = boardError, onToggle = { arrivals = it }, onClose = { station = null },
+                        onListen = if (audio) {
+                            {
+                                board?.takeIf { it.station.id == st.id }?.let { b -> Speaker.speak(context, spokenSummary(st, b, alertsNow, System.currentTimeMillis() / 1000)) }
+                            }
+                        } else null,
                     )
                 }
                 else -> {}

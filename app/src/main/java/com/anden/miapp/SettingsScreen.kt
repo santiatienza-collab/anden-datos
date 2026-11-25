@@ -80,7 +80,12 @@ private fun sourceLabel(id: String) = when (id) {
 }
 
 @Composable
-fun SettingsScreen(dark: Boolean, onDark: (Boolean) -> Unit, notify: Boolean, onNotify: (Boolean) -> Unit) {
+fun SettingsScreen(
+    dark: Boolean, onDark: (Boolean) -> Unit, notify: Boolean, onNotify: (Boolean) -> Unit,
+    voiceControl: Boolean = false, onVoiceControl: (Boolean) -> Unit = {},
+    audioInfo: Boolean = false, onAudioInfo: (Boolean) -> Unit = {},
+    onTutorial: () -> Unit = {},
+) {
     var sources by remember { mutableStateOf<SourcesInfo?>(null) }
     var failMsg by remember { mutableStateOf<String?>(null) }
     LaunchedEffect(Unit) {
@@ -108,6 +113,41 @@ fun SettingsScreen(dark: Boolean, onDark: (Boolean) -> Unit, notify: Boolean, on
                     ),
                 )
             }
+        }
+
+        Section("Accesibilidad por voz") {
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text("Control por voz", color = AndenWhite, fontSize = 15.sp)
+                    Text("Aparece un botón de micrófono: di el nombre de una estación y la app la abre.", color = Gray400, fontSize = 12.sp)
+                }
+                Switch(
+                    checked = voiceControl, onCheckedChange = onVoiceControl,
+                    colors = SwitchDefaults.colors(
+                        checkedThumbColor = Gray950, checkedTrackColor = AndenYellow,
+                        uncheckedThumbColor = Gray400, uncheckedTrackColor = Gray900,
+                    ),
+                )
+            }
+            Spacer(Modifier.height(14.dp))
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text("Información por audio", color = AndenWhite, fontSize = 15.sp)
+                    Text("Al abrir una estación, la app lee en voz alta ascensores averiados, retrasos, obras, huelgas y autobuses.", color = Gray400, fontSize = 12.sp)
+                }
+                Switch(
+                    checked = audioInfo, onCheckedChange = onAudioInfo,
+                    colors = SwitchDefaults.colors(
+                        checkedThumbColor = Gray950, checkedTrackColor = AndenYellow,
+                        uncheckedThumbColor = Gray400, uncheckedTrackColor = Gray900,
+                    ),
+                )
+            }
+            Spacer(Modifier.height(12.dp))
+            Text(
+                "Ver el tutorial", color = Gray950, fontSize = 12.sp, fontWeight = FontWeight.Bold,
+                modifier = Modifier.clip(RoundedCornerShape(50)).background(AndenYellow).clickable(onClick = onTutorial).padding(horizontal = 14.dp, vertical = 8.dp),
+            )
         }
 
         Section("Seguridad") {
