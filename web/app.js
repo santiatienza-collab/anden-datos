@@ -167,9 +167,9 @@ async function addLayers() {
   map.addSource('trains', { type: 'geojson', data: empty });
   const est = ['==', ['get', 'est'], true];
   map.addLayer({ id: 'trains', type: 'circle', source: 'trains', paint: {
-    'circle-color': ['case', est, '#ffffff', ['match', ['get', 'level'], 'green', COLORS.green, 'amber', COLORS.amber, 'red', COLORS.red, COLORS.gray]],
+    'circle-color': ['case', est, '#1e3a8a', ['match', ['get', 'level'], 'green', COLORS.green, 'amber', COLORS.amber, 'red', COLORS.red, COLORS.gray]],
     'circle-radius': ['interpolate', ['linear'], ['zoom'], 4, 3.5, 8, 6, 12, 9],
-    'circle-stroke-color': ['case', est, c.estStroke, c.stroke], 'circle-stroke-width': ['case', est, 2.2, 1.4] } });
+    'circle-stroke-color': ['case', est, '#ffffff', c.stroke], 'circle-stroke-width': ['case', est, 2.2, 1.4] } });
   addCritLayers();
   mapReady = true;
   pushMap();

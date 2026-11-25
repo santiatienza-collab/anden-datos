@@ -252,6 +252,9 @@ private fun highlightRegion(style: Style, selectedId: String?, dark: Boolean) {
     )
 }
 
+/** Trenes de Baleares (Mallorca): sin tiempo real, posición estimada según el horario. Se pintan en azul oscuro, distinto de los colores de retraso. */
+private val MALLORCA_BLUE = Color(0xFF1E3A8A)
+
 /** Añade las capas de estaciones y trenes sobre el estilo base ya cargado. */
 private fun addAndenLayers(style: Style, dark: Boolean) {
     val c = Palette(dark)
@@ -317,14 +320,14 @@ private fun addAndenLayers(style: Style, dark: Boolean) {
     style.addLayer(
         CircleLayer(LAYER, SRC).withProperties(
             // Los trenes estimados por horario se dibujan como anillos blancos: no son un dato en tiempo real.
-            circleColor(Expression.switchCase(Expression.eq(Expression.get("est"), Expression.literal(true)), Expression.color(Color.White.toArgb()), levelExpr())),
+            circleColor(Expression.switchCase(Expression.eq(Expression.get("est"), Expression.literal(true)), Expression.color(MALLORCA_BLUE.toArgb()), levelExpr())),
             circleRadius(
                 Expression.interpolate(
                     Expression.linear(), Expression.zoom(),
                     Expression.stop(4, 3.5f), Expression.stop(8, 6f), Expression.stop(12, 9f),
                 )
             ),
-            circleStrokeColor(Expression.switchCase(Expression.eq(Expression.get("est"), Expression.literal(true)), Expression.color(Gray600.toArgb()), Expression.color(c.trainStroke.toArgb()))),
+            circleStrokeColor(Expression.switchCase(Expression.eq(Expression.get("est"), Expression.literal(true)), Expression.color(Color.White.toArgb()), Expression.color(c.trainStroke.toArgb()))),
             circleStrokeWidth(Expression.switchCase(Expression.eq(Expression.get("est"), Expression.literal(true)), Expression.literal(2.4f), Expression.literal(1.4f))),
         )
     )
@@ -741,6 +744,7 @@ private fun MapLegend() {
             LegendRow(LevelAmber, "Retraso · 5 a 14 min")
             LegendRow(LevelRed, "Grave · 15+ min / cancelado")
             LegendRow(LevelGray, "Sin dato")
+            LegendRow(MALLORCA_BLUE, "Baleares · según horario", ring = true)
         }
     }
 }
@@ -750,7 +754,7 @@ private fun LegendRow(color: Color, text: String, ring: Boolean = false) {
     Row(verticalAlignment = Alignment.CenterVertically) {
         Box(
             Modifier.size(9.dp).clip(CircleShape).background(color)
-                .then(if (ring) Modifier.border(1.5.dp, Gray600, CircleShape) else Modifier.border(1.dp, Gray900, CircleShape)),
+                .then(if (ring) Modifier.border(1.5.dp, Color.White, CircleShape) else Modifier.border(1.dp, Gray900, CircleShape)),
         )
         Spacer(Modifier.width(6.dp))
         Text(text, color = AndenWhite, fontSize = 9.5.sp, lineHeight = 12.sp, maxLines = 1, softWrap = false)
@@ -798,7 +802,7 @@ private fun TrainCard(t: Train, onClose: () -> Unit) {
     Surface(shape = RoundedCornerShape(18.dp), color = Gray800, border = BorderStroke(1.dp, t.level.color().copy(alpha = 0.6f))) {
         Column(Modifier.fillMaxWidth().padding(16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(Modifier.size(12.dp).clip(CircleShape).background(t.level.color()))
+                Box(Modifier.size(12.dp).clip(CircleShape).background(if (t.estimated) MALLORCA_BLUE else t.level.color()))
                 Spacer(Modifier.width(10.dp))
                 Text(
                     listOfNotNull(t.line, t.label).joinToString(" · "), color = AndenWhite, fontSize = 18.sp,
