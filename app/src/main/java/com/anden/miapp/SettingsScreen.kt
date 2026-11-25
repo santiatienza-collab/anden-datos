@@ -180,11 +180,13 @@ fun SettingsScreen(
                     "Ajustes de batería" to {
                         runCatching { ctx.startActivity(android.content.Intent(android.provider.Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)) }
                     },
-                    "Notificación de prueba" to { SafetyNotifier.testNotification(ctx) },
+                    "Probar notificación" to { SafetyNotifier.testNotification(ctx) },
                 )) {
+                    // Los dos botones ocupan el mismo ancho y alto: una sola línea cada uno
                     Text(
-                        label, color = Gray950, fontSize = 12.sp, fontWeight = FontWeight.Bold,
-                        modifier = Modifier.clip(RoundedCornerShape(50)).background(AndenYellow).clickable(onClick = action).padding(horizontal = 14.dp, vertical = 8.dp),
+                        label, color = Gray950, fontSize = 12.sp, fontWeight = FontWeight.Bold, maxLines = 1, softWrap = false,
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                        modifier = Modifier.weight(1f).clip(RoundedCornerShape(50)).background(AndenYellow).clickable(onClick = action).padding(horizontal = 10.dp, vertical = 9.dp),
                     )
                 }
             }

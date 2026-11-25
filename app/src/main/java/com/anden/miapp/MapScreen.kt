@@ -536,6 +536,7 @@ fun MapScreen(
                 inRegion, filter,
                 onFilter = { filter = if (filter == it) null else it },
                 onSearch = { searching = true },
+                            now = now,
             )
             Spacer(Modifier.height(8.dp))
             RegionRow(regions, region, onPick = { onRegion(it); station = null; selectedId = null })
@@ -693,13 +694,17 @@ private fun MapContainer(
 private fun TopBar(
     trains: List<Train>, filter: Level?,
     onFilter: (Level) -> Unit, onSearch: () -> Unit,
+    now: Long,
 ) {
     // Los trenes estimados por horario (Mallorca) no tienen retraso medido: no cuentan como "sin dato".
     val counts = remember(trains) { trains.filter { !it.estimated }.groupingBy { it.level }.eachCount() }
     Surface(shape = RoundedCornerShape(16.dp), color = Gray800.copy(alpha = 0.95f)) {
         Column(Modifier.padding(horizontal = 14.dp, vertical = 10.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("Andén", color = AndenYellow, fontSize = 22.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+                Text("Andén", color = AndenYellow, fontSize = 22.sp, fontWeight = FontWeight.Bold)
+                Spacer(Modifier.width(10.dp))
+                ClockPill(now)
+                Spacer(Modifier.weight(1f))
                 Icon(Icons.Filled.Search, "Buscar estación", tint = AndenYellow,
                     modifier = Modifier.clip(CircleShape).clickable(onClick = onSearch).padding(4.dp).size(24.dp))
             }
@@ -752,10 +757,24 @@ private fun LegendRow(color: Color, text: String, ring: Boolean = false) {
     }
 }
 
-/**
- * Reloj verde con fecha y hora actuales (se actualiza cada segundo), SIEMPRE visible. Si hay un problema con los datos
- * (sin conexión o más de 20 min sin actualizarse) aparece además un aviso ámbar encima del reloj.
- */
+/** Reloj verde con fecha y hora actuales (se actualiza cada segundo), junto al título de la barra superior. Hora local del dispositivo. */
+@Composable
+private fun ClockPill(now: Long) {
+    val format = remember { java.text.SimpleDateFormat("EEE d MMM · HH:mm:ss", java.util.Locale("es", "ES")) }
+    Row(
+        Modifier.clip(RoundedCornerShape(50)).background(Gray900.copy(alpha = 0.9f)).padding(horizontal = 9.dp, vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        LiveClock(12.dp, LevelGreen)
+        Spacer(Modifier.width(5.dp))
+        Text(
+            format.format(java.util.Date(now)), color = LevelGreen, fontSize = 11.sp, fontWeight = FontWeight.Medium, maxLines = 1, softWrap = false,
+            style = androidx.compose.ui.text.TextStyle(fontFeatureSettings = "tnum"),
+        )
+    }
+}
+
+/** Aviso ámbar si hay un problema con los datos (sin conexión o más de 20 min sin actualizarse); si todo va bien, no se dibuja nada. */
 @Composable
 private fun StatusLine(dataTimeSec: Long?, now: Long, error: String?) {
     val age = dataTimeSec?.let { now / 1000 - it }
@@ -766,21 +785,11 @@ private fun StatusLine(dataTimeSec: Long?, now: Long, error: String?) {
         stale -> "Datos antiguos (${ageLabel(age!!)})"
         else -> null
     }
-    val pill = Modifier.clip(RoundedCornerShape(50)).background(Gray900.copy(alpha = 0.88f)).padding(horizontal = 10.dp, vertical = 4.dp)
-    val format = remember {
-        // Hora local del dispositivo (zona horaria por defecto), sin año para que quepa junto a la leyenda
-        java.text.SimpleDateFormat("EEE d MMM · HH:mm:ss", java.util.Locale("es", "ES"))
-    }
-    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        if (warning != null) Text(warning, color = LevelAmber, fontSize = 11.sp, fontWeight = FontWeight.Medium, modifier = pill)
-        Row(pill, verticalAlignment = Alignment.CenterVertically) {
-            LiveClock(12.dp, LevelGreen)
-            Spacer(Modifier.width(6.dp))
-            Text(
-                format.format(java.util.Date(now)), color = LevelGreen, fontSize = 11.sp, fontWeight = FontWeight.Medium,
-                style = androidx.compose.ui.text.TextStyle(fontFeatureSettings = "tnum"),
-            )
-        }
+    if (warning != null) {
+        Text(
+            warning, color = LevelAmber, fontSize = 11.sp, fontWeight = FontWeight.Medium,
+            modifier = Modifier.clip(RoundedCornerShape(50)).background(Gray900.copy(alpha = 0.88f)).padding(horizontal = 10.dp, vertical = 4.dp),
+        )
     }
 }
 
