@@ -23,13 +23,13 @@ concurrency:
   group: pages
   cancel-in-progress: false
 
+# Tres trabajos separados (así lo recomienda GitHub): construir y subir el sitio, desplegarlo y lanzar la siguiente ejecución.
+# Antes, subir y desplegar iban en el MISMO trabajo y, en ~1 de cada 3 ejecuciones, deploy-pages buscaba el artefacto antes de que
+# GitHub lo viera ("No artifacts named github-pages were found"). En trabajos distintos el artefacto ya está disponible.
 jobs:
-  publish:
+  build:
     runs-on: ubuntu-latest
     timeout-minutes: 12
-    environment:
-      name: github-pages
-      url: ${{ steps.deploy.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
 
@@ -74,13 +74,26 @@ jobs:
         with:
           path: site
 
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
       - id: deploy
         uses: actions/deploy-pages@v4
 
-      # Cadena: espera unos minutos y lanza la siguiente ejecución. Se hace incluso si algo falló arriba (para no romper la cadena),
-      # pero no si esta ejecución fue cancelada (así, si la sustituye otra, no se duplican cadenas).
+  siguiente:
+    # Se lanza la siguiente ejecución incluso si algo falló arriba (para no romper la cadena), pero no si esta se canceló
+    # (así, si la sustituye otra, no se duplican cadenas).
+    needs: [build, deploy]
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
       - name: Lanzar la siguiente ejecución
-        if: success() || failure()
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
