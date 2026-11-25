@@ -63,7 +63,7 @@ fun VoiceTutorialDialog(onClose: (enable: Boolean) -> Unit) {
     AlertDialog(
         onDismissRequest = { Speaker.stop(); onClose(false) },
         containerColor = Gray800,
-        title = { Text("Voz para personas ciegas", color = AndenYellow, fontWeight = FontWeight.Bold) },
+        title = { Text("Voz para personas invidentes", color = AndenYellow, fontWeight = FontWeight.Bold) },
         text = {
             Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 TUTORIAL_STEPS.forEachIndexed { i, t ->

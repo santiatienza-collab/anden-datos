@@ -82,7 +82,7 @@ fun MainScreen(openSection: String? = null, openSignal: String? = null, onOpened
         Section.entries.firstOrNull { it.name == openSection }?.let { section = it; if (openSignal == null) onOpened() }
     }
     var notify by remember { mutableStateOf(SafetyNotifier.enabled(context)) }
-    // Accesibilidad por voz (para personas ciegas): control por voz y lectura en audio, desactivados por defecto
+    // Accesibilidad por voz (para personas invidentes): control por voz y lectura en audio, desactivados por defecto
     var voiceControl by remember { mutableStateOf(VoicePrefs.voiceControl(context)) }
     var audioInfo by remember { mutableStateOf(VoicePrefs.audioInfo(context)) }
     var showTutorial by remember { mutableStateOf(!VoicePrefs.tutorialSeen(context)) }
