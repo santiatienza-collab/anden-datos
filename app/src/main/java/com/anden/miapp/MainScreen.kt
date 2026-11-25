@@ -58,9 +58,9 @@ const val REFRESH_MS = 30_000L
 
 enum class Section(val label: String, val icon: ImageVector) {
     Map("Mapa", Icons.Filled.Map),
+    Stations("Estaciones", Icons.Filled.Train),
     Delays("Retrasos", Icons.Filled.Schedule),
     Alerts("Avisos", Icons.Filled.Notifications),
-    Stations("Estaciones", Icons.Filled.Train),
     Safety("Seguridad", Icons.Filled.Shield),
     Settings("Ajustes", Icons.Filled.Settings),
 }
