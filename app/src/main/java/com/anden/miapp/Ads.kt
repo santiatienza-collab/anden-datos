@@ -46,8 +46,9 @@ object Ads {
 }
 
 /**
- * Anuncio de carga (apertura de la app): se muestra como máximo UNA vez por ejecución, al volver a la app desde segundo plano.
- * Se precarga al abrir y se vuelve a pedir si falló, si caducó (Google los invalida a las 4 h) o al salir de la app.
+ * Anuncio de carga (apertura de la app): se muestra como máximo UNA vez cada 24 horas, aunque la app se abra y se cierre muchas
+ * veces (la hora del último se guarda en el móvil, así que sobrevive a que Android cierre la app). Sale al volver a la app desde
+ * segundo plano. Mientras no toque, ni siquiera se pide el anuncio. Se precarga y se vuelve a pedir si falló o caducó (a las 4 h).
  */
 class AppOpenAdManager(private val activity: Activity) {
     private var ad: AppOpenAd? = null
@@ -56,11 +57,19 @@ class AppOpenAdManager(private val activity: Activity) {
     private var shown = false
     private var retries = 0
     private val handler = android.os.Handler(android.os.Looper.getMainLooper())
+    private val prefs = activity.getSharedPreferences("anden", Context.MODE_PRIVATE)
+
+    /** true si ya se mostró uno en las últimas 24 h (también tras reiniciar la app). */
+    private fun cooledDown(): Boolean {
+        val last = prefs.getLong(KEY_LAST_SHOWN, 0L)
+        val now = System.currentTimeMillis()
+        return last in 1..now && now - last < MIN_INTERVAL_MS
+    }
 
     private fun fresh() = ad != null && System.currentTimeMillis() - loadedAt < 3 * 3_600_000L
 
     fun load() {
-        if (!Ads.ready || shown || loading || fresh()) return
+        if (!Ads.ready || shown || loading || fresh() || cooledDown()) return
         ad = null
         loading = true
         AppOpenAd.load(activity, Ads.APP_OPEN_TEST, AdRequest.Builder().build(), object : AppOpenAd.AppOpenAdLoadCallback() {
@@ -78,16 +87,22 @@ class AppOpenAdManager(private val activity: Activity) {
 
     /** Se llama al volver a la app. Si hay anuncio listo y todavía no se ha mostrado ninguno, lo muestra; nunca dos veces. */
     fun showIfReady() {
-        if (shown) return
+        if (shown || cooledDown()) return
         val a = ad.takeIf { fresh() }
         if (a == null) { android.util.Log.i("AndenAds", "apertura: no hay anuncio listo al volver"); load(); return }
         shown = true
         ad = null
+        prefs.edit().putLong(KEY_LAST_SHOWN, System.currentTimeMillis()).apply()
         a.fullScreenContentCallback = object : FullScreenContentCallback() {
-            override fun onAdFailedToShowFullScreenContent(error: AdError) { shown = false; load(); android.util.Log.w("AndenAds", "apertura no se pudo mostrar: ${error.message}") }
+            override fun onAdFailedToShowFullScreenContent(error: AdError) { shown = false; prefs.edit().remove(KEY_LAST_SHOWN).apply(); load(); android.util.Log.w("AndenAds", "apertura no se pudo mostrar: ${error.message}") }
         }
         android.util.Log.i("AndenAds", "apertura: mostrando")
         a.show(activity)
+    }
+
+    private companion object {
+        const val KEY_LAST_SHOWN = "app_open_ad_last_shown"
+        const val MIN_INTERVAL_MS = 24 * 3_600_000L
     }
 }
 
