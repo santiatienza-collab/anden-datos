@@ -142,7 +142,7 @@ nav button.blink { animation: neon 1.2s infinite; color: #fff; border: 2px solid
 .clk .mh { transform-origin: 8px 8px; animation: clk-spin 8s linear infinite; }
 @keyframes clk-spin { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) { .clk .mh { animation: none; } }
-#legend { position: absolute; right: 10px; bottom: 34px; z-index: 5; background: rgba(42,42,46,.93); border-radius: 12px; padding: 7px 10px; font-size: 11px; line-height: 1.5; pointer-events: none; }
+#legend { position: absolute; left: 10px; bottom: 34px; z-index: 5; background: rgba(42,42,46,.93); border-radius: 12px; padding: 7px 10px; font-size: 11px; line-height: 1.5; pointer-events: none; }
 #legend i { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 6px; vertical-align: -1px; box-shadow: 0 0 0 1px #1c1c1f; }
 #legend i.ring { box-shadow: 0 0 0 1.5px #fff; }
 
@@ -152,7 +152,7 @@ header::after { content: ''; position: absolute; left: 0; right: 0; bottom: 0; h
   background: linear-gradient(90deg, rgba(255,214,10,0) 0%, #ffd60a 15%, #ffd60a 85%, rgba(255,214,10,0) 100%); }
 
 /* Alertas críticas en el mapa */
-#focus-chip { position: absolute; left: 10px; bottom: 34px; z-index: 5; display: flex; align-items: center; gap: 8px; background: rgba(20,20,22,.94); color: #ffd9de; border: 1.5px solid #ff1744;
+#focus-chip { position: absolute; left: 10px; bottom: 162px; z-index: 5; display: flex; align-items: center; gap: 8px; background: rgba(20,20,22,.94); color: #ffd9de; border: 1.5px solid #ff1744;
   border-radius: 999px; padding: 6px 12px; font-size: 12px; font-weight: 700; box-shadow: 0 0 14px rgba(255,23,68,.6); }
 #focus-chip[hidden] { display: none; }
 #focus-chip i { width: 9px; height: 9px; border-radius: 50%; background: #ff1744; box-shadow: 0 0 8px 2px #ff1744; animation: neonText 1.2s infinite; }
