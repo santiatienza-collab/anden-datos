@@ -16,8 +16,8 @@ android {
         applicationId = "com.anden.miapp"
         minSdk = 24
         targetSdk = 37
-        versionCode = 5
-        versionName = "1.1.1"
+        versionCode = 6
+        versionName = "1.1.2"
 
         // Dirección de los datos (GitHub Pages). Se cambia con -Panden.backend=https://usuario.github.io/repositorio
         val backend = providers.gradleProperty("anden.backend").orElse("https://santiatienza-collab.github.io/anden-datos").get()
@@ -51,8 +51,13 @@ android {
     buildTypes {
         release {
             signingConfigs.findByName("release")?.let { signingConfig = it }
+            // R8: ofuscación, reducción y optimización del código (Play Console lo exige: ofuscación mínima del 25 %)
             optimization {
-                enable = false
+                enable = true
+                keepRules {
+                    files.add(getDefaultProguardFile("proguard-android-optimize.txt"))
+                    files.add(file("proguard-rules.pro"))
+                }
             }
         }
     }
