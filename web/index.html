@@ -70,6 +70,21 @@
   <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
   <script src="app.js"></script>
   <script src="voz.js"></script>
+  <script>
+    // iOS no ofrece botón «Instalar»: se avisa una vez, solo en iPhone/iPad y si la web no está ya instalada
+    (() => {
+      const ios = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+      const instalada = navigator.standalone || matchMedia('(display-mode: standalone)').matches;
+      let visto = false; try { visto = localStorage.getItem('anden_ios_aviso') === '1'; } catch (_) {}
+      if (!ios || instalada || visto) return;
+      setTimeout(() => {
+        const b = document.createElement('div'); b.id = 'ios-aviso'; b.setAttribute('role', 'note');
+        b.innerHTML = '<span>Instala Andén en tu iPhone: pulsa <b>Compartir</b> <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12M12 3l-4 4M12 3l4 4M6 11H5a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-8a1 1 0 0 0-1-1h-1" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg> y <b>«Añadir a pantalla de inicio»</b>.</span><button type="button" aria-label="Cerrar aviso">✕</button>';
+        b.querySelector('button').onclick = () => { b.remove(); try { localStorage.setItem('anden_ios_aviso', '1'); } catch (_) {} };
+        document.body.appendChild(b);
+      }, 4000);
+    })();
+  </script>
   <script>if ('serviceWorker' in navigator) window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));</script>
 </body>
 </html>
