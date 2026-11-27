@@ -1,0 +1,34 @@
+{
+  "name": "anden-desktop",
+  "version": "1.0.0",
+  "description": "Andén: incidencias, retrasos, alertas de seguridad y accesibilidad de la red ferroviaria española (app de escritorio).",
+  "author": "Code4all Software",
+  "license": "UNLICENSED",
+  "private": true,
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder --mac dmg --universal --publish never"
+  },
+  "devDependencies": {
+    "electron": "^33.2.1",
+    "electron-builder": "^25.1.8"
+  },
+  "build": {
+    "appId": "com.anden.miapp.desktop",
+    "productName": "Andén",
+    "copyright": "Code4all Software",
+    "files": ["main.js", "offline.html", "package.json"],
+    "mac": {
+      "category": "public.app-category.travel",
+      "icon": "build/icon.png",
+      "target": [{ "target": "dmg", "arch": ["universal"] }],
+      "identity": null,
+      "hardenedRuntime": false
+    },
+    "dmg": {
+      "title": "Andén ${version}",
+      "artifactName": "Anden-${version}-mac.${ext}"
+    }
+  }
+}

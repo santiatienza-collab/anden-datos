@@ -1,0 +1,76 @@
+name: App de escritorio (Mac)
+
+# Construye el instalador .dmg de Andén para Mac en un ordenador macOS de GitHub (no hace falta tener un Mac).
+#  · Al cambiar la carpeta desktop/ o este flujo: se construye y el .dmg queda como ARTEFACTO de la ejecución (30 días, hay que iniciar sesión en GitHub para bajarlo).
+#  · Al subir una etiqueta "mac-v1.0.0" (o lanzar este flujo con "publicar"): además se crea una RELEASE pública con el .dmg para descargarlo con un enlace.
+# La app NO está firmada con un certificado de Apple (hace falta una cuenta de Apple Developer de pago): macOS pedirá abrirla con clic derecho → Abrir.
+on:
+  workflow_dispatch:
+    inputs:
+      publicar:
+        description: 'Publicar también una Release pública con el .dmg'
+        type: boolean
+        default: false
+  push:
+    tags: ['mac-v*']
+    branches: [main]
+    paths: ['desktop/**', '.github/workflows/mac.yml']
+
+permissions:
+  contents: write
+
+concurrency:
+  group: mac-build
+  cancel-in-progress: false
+
+jobs:
+  dmg:
+    runs-on: macos-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: desktop/package-lock.json
+
+      - name: Instalar dependencias
+        working-directory: desktop
+        run: npm ci
+
+      - name: Construir el .dmg (universal, para Mac con Intel y con Apple Silicon)
+        working-directory: desktop
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+        run: npm run dist
+
+      - name: Qué se ha generado
+        run: ls -la desktop/dist/*.dmg
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Anden-mac-dmg
+          path: desktop/dist/*.dmg
+          retention-days: 30
+          if-no-files-found: error
+
+      - name: Publicar la Release con el .dmg
+        if: startsWith(github.ref, 'refs/tags/mac-v') || inputs.publicar == true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          VERSION=$(node -p "require('./desktop/package.json').version")
+          TAG="${GITHUB_REF_NAME}"
+          case "$TAG" in mac-v*) ;; *) TAG="mac-v$VERSION" ;; esac
+          NOTES="Andén para Mac (versión $VERSION). Abre la web app de Andén en una ventana propia; siempre está al día.
+
+          **Instalación:** abre el .dmg y arrastra Andén a Aplicaciones. Como la app no está firmada con un certificado de Apple, la primera vez haz clic derecho sobre Andén → Abrir → Abrir. Si macOS dice que está dañada, ejecuta en Terminal: xattr -cr /Applications/Andén.app
+
+          Funciona en Mac con Intel y con Apple Silicon."
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" desktop/dist/*.dmg --clobber
+          else
+            gh release create "$TAG" desktop/dist/*.dmg --title "Andén para Mac $VERSION" --notes "$NOTES"
+          fi

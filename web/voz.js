@@ -243,7 +243,8 @@
       got = true;
       const msg = e.error === 'not-allowed' || e.error === 'service-not-allowed' ? 'No tengo permiso para usar el micrófono. Actívalo en los ajustes del navegador para este sitio.'
         : e.error === 'no-speech' ? 'No te he oído. Pulsa el botón del micrófono para intentarlo de nuevo.'
-        : e.error === 'audio-capture' ? 'No se detecta ningún micrófono.' : 'No se pudo reconocer la voz (' + e.error + ').';
+        : e.error === 'audio-capture' ? 'No se detecta ningún micrófono.'
+        : e.error === 'network' ? 'El reconocimiento de voz no está disponible ahora (sin conexión o en esta aplicación). Prueba en Safari o Chrome; la lectura en voz alta sigue funcionando.' : 'No se pudo reconocer la voz (' + e.error + ').';
       say(msg); if (prefs.audio) speak(msg);
     };
     rec.onend = () => { listening = false; mic.classList.remove('on'); if (!got) say('No te he oído.'); };

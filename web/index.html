@@ -6,6 +6,14 @@
   <title>Andén · Mapa y estado de trenes en España</title>
   <meta name="description" content="Incidencias en la red nacional de trenes. Retrasos, avisos, accesibilidad y horarios de estaciones.">
   <link rel="icon" href="icon.png">
+  <!-- Web app instalable: iPhone/iPad (Safari → Compartir → Añadir a pantalla de inicio), Mac (Safari → Añadir al Dock) y Android -->
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <meta name="theme-color" content="#1c1c1f">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Andén">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black">
   <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css">
   <link rel="preload" href="fonts/inter-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="style.css">
@@ -62,5 +70,6 @@
   <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
   <script src="app.js"></script>
   <script src="voz.js"></script>
+  <script>if ('serviceWorker' in navigator) window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));</script>
 </body>
 </html>
